@@ -1,0 +1,3989 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#04080b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2304080b'/%3E%3Ccircle cx='32' cy='32' r='13' fill='none' stroke='%235ff5e8' stroke-width='4'/%3E%3Cpath d='M22 23 Q32 32 22 41 M42 23 Q32 32 42 41' stroke='%235ff5e8' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PULSE COURT — Cyber Neon Arena</title>
+<!-- Share metadata: renders a proper card when the URL is pasted into
+     LINE, Discord, Slack, X, etc. No image is referenced because the game
+     is a single self-contained file with no assets to point at. -->
+<meta name="description" content="A neon tennis game you can play in your browser. Time the swing, pick your shot. First to 11.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="PULSE COURT — Cyber Neon Arena">
+<meta property="og:description" content="A neon tennis game you can play in your browser. Time the swing, pick your shot. First to 11.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="PULSE COURT — Cyber Neon Arena">
+<meta name="twitter:description" content="A neon tennis game you can play in your browser. Time the swing, pick your shot. First to 11.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Fonts are the only external dependency. `display=swap` plus the local
+     fallbacks below mean the game renders and plays immediately even if the
+     CDN is slow, blocked, or offline — nothing here is load-blocking. -->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Chakra+Petch:wght@300;400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Chakra+Petch:wght@300;400;600;700&display=swap" rel="stylesheet"></noscript>
+<style>
+:root{
+  --bg:#04080b;
+  --cyan:#5ff5e8;
+  --blue:#3a9bff;
+  --purp:#b160ff;
+  --rose:#ff5f7e;
+  --ink:#d8fffb;
+  --ink-soft:rgba(216,255,251,.5);
+  --glass:rgba(12,28,32,.5);
+  --brd:rgba(95,245,232,.18);
+  --r:14px;
+  --mono:'Share Tech Mono', ui-monospace, monospace;
+  --disp:'Chakra Petch', system-ui, sans-serif;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{
+  height:100%;width:100%;overflow:hidden;background:#000;color:var(--ink);
+  font-family:var(--mono);
+  overscroll-behavior:none;touch-action:none;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  position:fixed;inset:0;
+}
+#app{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000;}
+#stage{position:relative;width:100%;height:100%;}
+canvas{display:block;width:100%;height:100%;touch-action:none;}
+#game{cursor:crosshair;}
+
+/* ── Controls ──────────────────────────────────────────────
+   Top-anchored. The bottom of the screen is where the player
+   presses to stand deep (z=-3.2 maps to ~90% down the screen),
+   so buttons there would swallow the most important touches in
+   the game. The top band is dead space by comparison.
+   ─────────────────────────────────────────────────────── */
+#controls{
+  position:absolute;top:0;left:0;right:0;z-index:5;
+  display:flex;justify-content:center;gap:8px;
+  padding:calc(6px + var(--safe-t)) 10px 8px;
+  pointer-events:none;
+}
+.btn{
+  pointer-events:auto;
+  font-family:var(--disp);font-weight:600;letter-spacing:.12em;
+  color:var(--ink-soft);
+  background:var(--glass);border:1px solid var(--brd);border-radius:999px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  cursor:pointer;transition:color .18s,border-color .18s,box-shadow .18s,transform .1s;
+  font-size:11px;
+  min-height:44px;
+  padding:0 16px;
+  touch-action:manipulation;
+}
+body.portrait .btn{ flex:1 1 0; min-height:46px; font-size:12px; padding:0 8px; }
+.btn:hover,.btn:focus-visible{color:var(--cyan);border-color:rgba(95,245,232,.5);
+  box-shadow:0 0 16px rgba(95,245,232,.18);outline:none;}
+.btn:active{transform:scale(.95);}
+.btn.off{color:rgba(216,255,251,.25);border-color:rgba(216,255,251,.08);}
+
+/* ── Overlays ── */
+.screen{
+  position:fixed;inset:0;z-index:20;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:clamp(14px,3vh,24px);padding:6vmin;
+  background:rgba(4,8,11,.88);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  opacity:0;visibility:hidden;transition:opacity .28s,visibility .28s;
+}
+.screen.show{opacity:1;visibility:visible;}
+.title{
+  font-family:var(--disp);font-weight:700;
+  font-size:clamp(30px,9vw,58px);letter-spacing:.16em;line-height:1;text-align:center;
+  color:var(--cyan);text-shadow:0 0 30px rgba(95,245,232,.45);
+}
+.subtitle{
+  font-family:var(--mono);font-size:clamp(9px,2.6vw,12px);
+  letter-spacing:.42em;color:var(--ink-soft);text-align:center;text-indent:.42em;
+}
+.hint{font-size:clamp(11px,3vw,14px);color:var(--ink-soft);text-align:center;
+  line-height:1.9;max-width:44ch;}
+.hint b{color:var(--cyan);}
+.hint .lob{color:var(--purp);}
+.hint .drv{color:var(--rose);}
+.cta{
+  font-family:var(--disp);font-weight:700;
+  font-size:clamp(12px,3.4vw,15px);letter-spacing:.2em;color:#04080b;
+  padding:clamp(12px,2vh,14px) clamp(28px,7vw,40px);
+  min-height:48px;
+  background:var(--cyan);border:none;border-radius:999px;cursor:pointer;
+  box-shadow:0 0 30px rgba(95,245,232,.35);
+  transition:transform .12s,box-shadow .2s,filter .2s;
+  touch-action:manipulation;
+}
+.cta:hover,.cta:focus-visible{transform:translateY(-2px);
+  box-shadow:0 0 44px rgba(95,245,232,.55);filter:brightness(1.08);outline:none;}
+.cta:active{transform:translateY(0) scale(.97);}
+.cta.ghost{background:transparent;color:var(--ink-soft);
+  border:1px solid var(--brd);box-shadow:none;font-weight:600;}
+.cta.ghost:hover,.cta.ghost:focus-visible{color:var(--cyan);border-color:var(--cyan);
+  box-shadow:0 0 20px rgba(95,245,232,.15);}
+.row{display:flex;gap:clamp(8px,2.4vw,14px);flex-wrap:wrap;justify-content:center;}
+
+/* ── Title menu ── */
+.hidden{display:none!important;}
+.titleWrap{text-align:center;}
+.menu{display:flex;flex-direction:column;gap:clamp(10px,2vh,14px);
+  width:min(88vw,420px);margin:clamp(14px,3vh,26px) auto 0;align-items:stretch;}
+.menuHead{font-family:var(--disp);font-weight:700;letter-spacing:.24em;
+  font-size:12px;color:var(--ink-soft);text-align:center;margin:0 0 2px;}
+.menuBtn{position:relative;display:flex;flex-direction:column;gap:3px;
+  padding:clamp(14px,2.4vh,18px) 22px;border-radius:16px;cursor:pointer;
+  background:linear-gradient(135deg,rgba(95,245,232,.10),rgba(58,155,255,.05));
+  border:1px solid var(--brd);color:var(--ink);text-align:left;
+  transition:transform .14s,box-shadow .24s,border-color .24s,background .24s;
+  touch-action:manipulation;overflow:hidden;}
+.menuBtn::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 30%,rgba(95,245,232,.16),transparent 70%);
+  transform:translateX(-120%);transition:transform .5s;}
+.menuBtn:hover,.menuBtn:focus-visible{transform:translateY(-2px);outline:none;
+  border-color:var(--cyan);box-shadow:0 0 34px rgba(95,245,232,.28);}
+.menuBtn:hover::after,.menuBtn:focus-visible::after{transform:translateX(120%);}
+.menuBtn:active{transform:translateY(0) scale(.98);}
+.mbMain{font-family:var(--disp);font-weight:700;letter-spacing:.16em;
+  font-size:clamp(15px,4vw,19px);color:var(--cyan);}
+.mbSub{font-size:clamp(10px,2.6vw,12px);color:var(--ink-soft);letter-spacing:.04em;}
+.diffBtn{display:flex;flex-direction:column;gap:2px;padding:clamp(11px,2vh,15px) 20px;
+  border-radius:14px;cursor:pointer;background:rgba(255,255,255,.02);
+  border:1px solid var(--brd);color:var(--ink);text-align:left;
+  transition:transform .12s,border-color .2s,box-shadow .2s,background .2s;
+  touch-action:manipulation;}
+.diffBtn span{font-family:var(--disp);font-weight:700;letter-spacing:.12em;
+  font-size:clamp(14px,3.6vw,17px);}
+.diffBtn em{font-style:normal;font-size:clamp(10px,2.5vw,12px);color:var(--ink-soft);}
+.diffBtn:hover,.diffBtn:focus-visible{transform:translateX(4px);outline:none;
+  border-color:var(--cyan);background:rgba(95,245,232,.06);
+  box-shadow:0 0 24px rgba(95,245,232,.2);}
+.diffBtn:active{transform:translateX(4px) scale(.98);}
+.diffBtn[data-diff="pro"] span{color:var(--rose);}
+.diffBtn[data-diff="advanced"] span{color:var(--purp);}
+
+/* ── Analytics button (top-left of title) ── */
+.analyticsBtn{
+  position:absolute; top:16px; left:16px; z-index:5;
+  font-family:var(--disp); font-weight:600; letter-spacing:.12em;
+  font-size:11px; color:var(--ink-soft);
+  background:rgba(255,255,255,.03); border:1px solid var(--brd);
+  border-radius:9px; padding:8px 14px; cursor:pointer;
+  transition:color .2s,border-color .2s,background .2s; touch-action:manipulation;
+}
+.analyticsBtn:hover,.analyticsBtn:focus-visible{
+  color:var(--cyan); border-color:var(--cyan);
+  background:rgba(95,245,232,.06); outline:none;
+}
+
+/* ── Analytics screen ── */
+#scrAnalytics{ align-items:stretch; justify-content:flex-start; padding:0; }
+.anWrap{ width:100%; max-width:720px; margin:0 auto; height:100%;
+  display:flex; flex-direction:column; padding:clamp(14px,3vh,26px) clamp(14px,4vw,28px); box-sizing:border-box; }
+.anHead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex:0 0 auto; }
+.anTitle{ font-family:var(--disp); font-weight:700; letter-spacing:.18em;
+  font-size:clamp(16px,4.5vw,22px); color:var(--cyan); margin:0; }
+.anBack{ padding:8px 16px; font-size:12px; }
+.anBody{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  display:flex; flex-direction:column; gap:16px; padding-bottom:20px; }
+.anCard{ background:rgba(255,255,255,.02); border:1px solid var(--brd);
+  border-radius:14px; padding:14px 16px; }
+.anCard h3{ font-family:var(--disp); font-weight:700; letter-spacing:.14em;
+  font-size:12px; color:var(--ink-soft); margin:0 0 12px; text-transform:uppercase; }
+.anStats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr)); gap:10px; }
+.anStat{ text-align:center; }
+.anStat .v{ font-family:var(--disp); font-weight:700; font-size:clamp(20px,5vw,26px); color:var(--cyan); display:block; }
+.anStat .v.rose{ color:var(--rose); } .anStat .v.purp{ color:var(--purp); }
+.anStat .l{ font-size:10px; color:var(--ink-soft); letter-spacing:.06em; text-transform:uppercase; }
+.anBar{ display:flex; align-items:center; gap:10px; margin:7px 0; }
+.anBar .bl{ width:78px; font-size:11px; color:var(--ink-soft); letter-spacing:.04em; flex:0 0 auto; }
+.anBar .bt{ flex:1 1 auto; height:8px; background:rgba(255,255,255,.05); border-radius:4px; overflow:hidden; }
+.anBar .bf{ height:100%; border-radius:4px; background:var(--cyan); }
+.anBar .bv{ width:52px; text-align:right; font-size:11px; color:var(--ink); flex:0 0 auto; font-variant-numeric:tabular-nums; }
+.anHeat{ display:grid; gap:3px; margin-top:4px; }
+.anHeat .hc{ aspect-ratio:1; border-radius:3px; background:rgba(95,245,232,.05); }
+.anEmpty{ text-align:center; color:var(--ink-soft); font-size:13px; padding:40px 20px; line-height:1.7; }
+
+/* ── Matchmaking ── */
+.matchWrap{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;}
+.matchSpinner{position:relative;width:96px;height:96px;margin-bottom:6px;}
+.matchSpinner .ring{position:absolute;inset:0;border-radius:50%;
+  border:3px solid transparent;border-top-color:var(--cyan);
+  animation:spin 1s linear infinite;}
+.matchSpinner .ring.r2{inset:14px;border-top-color:var(--purp);
+  animation-duration:1.5s;animation-direction:reverse;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.matchStage{font-size:clamp(13px,3.4vw,16px);color:var(--ink);letter-spacing:.04em;
+  min-height:1.4em;max-width:min(84vw,420px);line-height:1.55;margin-inline:auto;}
+.matchPing{font-family:var(--disp);font-size:12px;color:var(--ink-soft);
+  letter-spacing:.1em;min-height:1.2em;}
+.matchCode{font-family:var(--disp);font-weight:700;color:var(--cyan);
+  font-size:clamp(30px,10vw,48px);letter-spacing:.22em;margin:2px 0 0;
+  text-shadow:0 0 24px rgba(95,245,232,.45);user-select:all;}
+.matchLobby{display:flex;flex-direction:column;gap:12px;align-items:stretch;
+  width:min(80vw,320px);margin-top:4px;}
+.joinRow{display:flex;gap:8px;}
+.joinRow .cta{flex:1 1 0;padding:0 12px;height:44px;}
+.lobbyDiv{font-size:10px;color:var(--ink-soft);letter-spacing:.18em;
+  text-transform:uppercase;text-align:center;margin:2px 0 -2px;}
+.codeInput{flex:1 1 auto;min-width:0;background:rgba(255,255,255,.04);
+  border:1px solid var(--brd);border-radius:999px;color:var(--ink);
+  font-family:var(--disp);font-weight:700;letter-spacing:.24em;text-transform:uppercase;
+  font-size:15px;text-align:center;padding:0 14px;height:44px;outline:none;}
+.codeInput::placeholder{color:var(--ink-soft);letter-spacing:.2em;}
+.codeInput:focus{border-color:var(--cyan);box-shadow:0 0 18px rgba(95,245,232,.25);}
+.verdict{font-family:var(--disp);font-weight:700;
+  font-size:clamp(26px,8vw,48px);letter-spacing:.18em;}
+.verdict.win{color:var(--cyan);text-shadow:0 0 32px rgba(95,245,232,.5);}
+.verdict.lose{color:var(--purp);text-shadow:0 0 32px rgba(177,96,255,.45);}
+.final{font-family:var(--mono);font-size:clamp(18px,5vw,28px);letter-spacing:.2em;color:var(--ink);}
+.stats{display:flex;gap:clamp(14px,5vw,30px);font-family:var(--disp);}
+.stat{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.stat .k{font-size:clamp(7px,1.9vw,9px);letter-spacing:.18em;color:var(--ink-soft);}
+.stat .v{font-size:clamp(13px,3.6vw,18px);font-weight:600;color:var(--cyan);}
+.legend{
+  display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;
+  font-size:12px;color:var(--ink-soft);max-width:300px;
+}
+.legend .g{font-family:var(--disp);font-weight:700;font-size:10px;letter-spacing:.1em;
+  padding:4px 8px;border-radius:6px;text-align:center;white-space:nowrap;}
+.legend .g.tap{background:rgba(95,245,232,.14);color:var(--cyan);}
+.legend .g.fwd{background:rgba(255,95,126,.14);color:var(--rose);}
+.legend .g.back{background:rgba(177,96,255,.14);color:var(--purp);}
+@media (prefers-reduced-motion: reduce){*{transition-duration:.01ms!important;}}
+</style>
+</head>
+<body>
+<div id="app"><div id="stage">
+  <canvas id="game"></canvas>
+  <div id="controls">
+    <button class="btn" id="btnPause" type="button">PAUSE</button>
+    <button class="btn" id="btnRestart" type="button">RESTART</button>
+    <button class="btn" id="btnSound" type="button">SOUND ON</button>
+  </div>
+</div></div>
+
+<div class="screen show" id="scrTitle">
+  <button class="analyticsBtn" id="btnAnalytics" type="button">Analytics</button>
+  <div class="titleWrap">
+    <h1 class="title">PULSE COURT</h1>
+    <p class="subtitle" style="margin-top:8px">CYBER NEON ARENA</p>
+  </div>
+
+  <!-- MODE SELECT -->
+  <div class="menu" id="menuMode">
+    <button class="menuBtn" id="btnModeCpu" type="button">
+      <span class="mbMain">CPU MATCH</span>
+      <span class="mbSub">Play against the machine</span>
+    </button>
+    <button class="menuBtn" id="btnModeOnline" type="button">
+      <span class="mbMain">ONLINE MATCH</span>
+      <span class="mbSub" id="onlineSub">Play a friend with a room code</span>
+    </button>
+  </div>
+
+  <!-- DIFFICULTY SELECT (hidden until CPU MATCH) -->
+  <div class="menu hidden" id="menuDiff">
+    <p class="menuHead">SELECT DIFFICULTY</p>
+    <button class="diffBtn" data-diff="beginner" type="button"><span>Beginner</span><em>Relaxed — soft returns, room to learn</em></button>
+    <button class="diffBtn" data-diff="intermediate" type="button"><span>Intermediate</span><em>Steady — aims corners, rarely misses</em></button>
+    <button class="diffBtn" data-diff="advanced" type="button"><span>Advanced</span><em>Aggressive — takes the net, sharp</em></button>
+    <button class="diffBtn" data-diff="pro" type="button"><span>Pro</span><em>Elite — fast, relentless, net-first</em></button>
+    <button class="cta ghost" id="btnDiffBack" type="button">BACK</button>
+  </div>
+
+  <p class="hint" id="titleHint">
+    <b>Press</b> where you want to stand · <b>Hold</b> to charge · <b>release</b> to swing<br>
+    <b>Swipe ↑</b> fast · <b>Swipe ↓</b> lob · <b>Tap</b> normal — swipe direction is the shot<br>
+    First to <b>11</b>, win by <b>2</b>
+  </p>
+</div>
+
+<!-- ONLINE MATCHMAKING -->
+<div class="screen" id="scrMatch">
+  <div class="matchWrap">
+    <div class="matchSpinner"><div class="ring"></div><div class="ring r2"></div></div>
+    <h2 class="verdict" style="color:var(--cyan);font-size:clamp(24px,7vw,40px)">ONLINE MATCH</h2>
+    <p class="matchStage" id="matchStage">Match with anyone, or share a password with a friend.</p>
+    <p class="matchCode" id="matchCode" style="display:none"></p>
+    <p class="matchPing" id="matchPing"></p>
+    <div class="matchLobby" id="matchLobby">
+      <button class="cta" id="btnRandomMatch" type="button">RANDOM MATCH</button>
+      <p class="lobbyDiv">or play a friend</p>
+      <input class="codeInput" id="roomCodeInput" type="text" inputmode="latin"
+             autocomplete="off" spellcheck="false" maxlength="12" placeholder="PASSWORD">
+      <div class="joinRow">
+        <button class="cta ghost" id="btnHostRoom" type="button">CREATE</button>
+        <button class="cta ghost" id="btnJoinRoom" type="button">JOIN</button>
+      </div>
+    </div>
+    <button class="cta ghost" id="btnMatchCancel" type="button">CANCEL</button>
+  </div>
+</div>
+
+<!-- MATCH ANALYSIS -->
+<div class="screen" id="scrAnalytics">
+  <div class="anWrap">
+    <div class="anHead">
+      <h2 class="anTitle">SESSION ANALYSIS</h2>
+      <button class="cta ghost anBack" id="btnAnBack" type="button">BACK</button>
+    </div>
+    <div class="anBody" id="anBody"><!-- filled by renderAnalytics() --></div>
+  </div>
+</div>
+
+<div class="screen" id="scrPause">
+  <h2 class="verdict" style="color:var(--blue);text-shadow:0 0 28px rgba(58,155,255,.4)">PAUSED</h2>
+  <div class="row">
+    <button class="cta" id="btnResume" type="button">RESUME</button>
+    <button class="cta ghost" id="btnQuit" type="button">TITLE</button>
+  </div>
+</div>
+
+<div class="screen" id="scrEnd">
+  <h2 class="verdict" id="verdict">VICTORY</h2>
+  <p class="final" id="finalScore">11 — 04</p>
+  <div class="stats">
+    <div class="stat"><span class="k">LONGEST RALLY</span><span class="v" id="stLong">0</span></div>
+    <div class="stat"><span class="k">WINNERS</span><span class="v" id="stWin">0</span></div>
+    <div class="stat"><span class="k">VOLLEYS</span><span class="v" id="stVol">0</span></div>
+  </div>
+  <div class="row">
+    <button class="cta" id="btnAgain" type="button">REMATCH</button>
+    <button class="cta ghost" id="btnHome" type="button">TITLE</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════
+   PULSE COURT
+   Court space:
+     x : -hw … +hw     left ↔ right
+     y : 0 … up        height above the court
+     z : 0 (player) … len (CPU)
+
+   INPUT MODEL (identical on touch and mouse):
+     press          → stand here; the return area follows the finger
+     drag           → aim + shot type; position freezes once committed
+     release        → SERVE / STROKE / VOLLEY, chosen by context;
+                      waits until the ball has crossed the net
+
+   Positioning is manual. There is no auto-tracking: where you
+   stand is your problem, and the return area — an ellipse
+   stretched forward, tight behind — is what you cover. Swipe
+   direction maps to shot direction with no correction, so a
+   wide swing genuinely goes wide.
+   ═══════════════════════════════════════════════════════════ */
+
+const CFG = {
+  /* Design resolution: a portrait phone. Everything below is authored
+     against 1080×1980 and scaled to fit; the old 1280×720 landscape canvas
+     meant a portrait device cropped the sides and wasted the height, which
+     is exactly the vertical room the court needs. */
+  W:1080, H:1980,
+  court:{ hw:5.04, len:28.56, netZ:14.28, netH:0.95 },
+  /* Ball radius used for line judgment. Per ITF, a ball is IN if it touches
+     any part of a line, so the ball is out only when its EDGE clears the
+     line's outer edge — i.e. in-bounds extends by one ball radius beyond the
+     nominal sideline/baseline. 0.11 gives the natural "just in" line calls a
+     tennis player expects (slightly forgiving, chosen over the tiny realistic
+     ~0.04 for feel). The SAME radius is used everywhere judgment happens. */
+  ballR:0.11,
+  /* Camera. Slightly wider and slightly closer than the previous setting,
+     giving the court more of the screen (spread 747→811px, near baseline
+     shifted down ~140px ≈ 2 ball-diameters). Same broadcast angle (30°/13°).
+     Width check: near-side sideline lands at 1077px, just inside 1080. */
+  /* Camera. Widened and pulled back to reveal the extended back-court
+     (player can now retreat to z=-5.2) while keeping the whole court on a
+     portrait screen — near sideline lands at ~1060px, inside 1080. Broadcast
+     angle preserved. This shows the largest court that still fits without
+     cropping the deep corners. */
+  /* Camera for the 1.2× court with 1.3× back-court. Pulled back and widened
+     so the whole enlarged court (near z=-6.76 to the far winner line) fits a
+     portrait screen — near sideline at ~1077px, inside 1080. Broadcast angle
+     preserved. */
+  /* Camera tuned to fill the screen — the court now spans ~47% of the height
+     (was 39%), with the near sideline at ~1065px (inside 1080). Lower horizon
+     pushes the far court up, the near court down, using the vertical space the
+     old framing wasted on dead margins. Broadcast angle preserved. */
+  /* Camera. Pulled back / narrowed so the ENTIRE court — including the near
+     baseline corners, previously spilling off both sides — fits within the
+     design width with margin (near corners land ~46–1034 of 1080). This is
+     what stops the court being clipped left/right, which in turn lets the fit
+     logic scale up without cropping. Broadcast angle preserved. */
+  cam:{ x:0, y:15.0, z:-26.0, fovX:34*Math.PI/180, follow:0.05, sway:0.30 },
+  horizonFrac:0.05,
+  phys:{ g:9.6, restitution:0.60, friction:0.965, airDrag:0.9975 },
+
+  player:{
+    // Resting depth, and the range the player can be moved through by touch.
+    // minZ is pushed well behind the baseline (z=0): the measured standing
+    // spot for a deep ball is around z=-0.4 to 1, so without real room behind
+    // there is nowhere to retreat to and deep balls become unplayable.
+    baseZ:-1.68,
+    minZ:-6.76,          // deepest — back-court 1.3x for deep/high balls
+    maxZ:9.12,           // furthest forward — inside the service box
+    // Forward/back speed is calibrated to a single target: a genuine drop
+    // shot (lands ~z=15, playable until ~2.15s) must be reachable from the
+    // baseline with almost no margin. At 7.2 m/s the player arrives right as
+    // the ball becomes unplayable — "just barely." Slower and drop shots are
+    // free winners; faster and they're trivial. This is deliberately quicker
+    // than the old 4.8: the request is about the drop-shot feel, and the
+    // measurement says the old value couldn't reach one at all.
+    zSpeed:8.6,          // m/s up and down the court (scaled for 1.2x court)
+
+    trackTime:1.725,     // seconds to cross the whole court end-to-end
+    accel:11.0,          // m/s² toward the target
+    decel:15.0,          // m/s² when slowing or reversing
+    trackEase:0.12,      // deadband (m)
+    recover:0.55         // per-second pull back toward the middle when idle
+  },
+
+  /* ── RETURN AREA ─────────────────────────────────────────
+     A circle now, not a forward ellipse. Front, back and sides
+     reach equally, so being caught behind the ball is no longer
+     softened by a forward stretch — position has to be right in
+     every direction. Radius 1.4 is a notch smaller than the old
+     shape's average reach, which raises the precision bar and
+     makes the volley genuinely hard to place.
+
+       radius : reach in every direction
+       lead   : how far the circle sits ahead of the feet (small,
+                so the circle is centred close to the player)
+     ────────────────────────────────────────────────────── */
+  area:{
+    radius:1.7,
+    lead:0.35
+  },
+
+  /* ── AIM ─────────────────────────────────────────────────
+     The swipe's lateral component maps onto an angular fan. No
+     clamping into the court: a full sideways swipe genuinely
+     goes wide. Measured against the sideline angle (13.1° from
+     the baseline to a 17m target), ±16° means a 3/4 swipe finds
+     the corner and a full swipe misses — precision pays, and
+     nothing is corrected on the player's behalf.
+     ────────────────────────────────────────────────────── */
+  aimFanDeg:17,
+
+  /* ── ANALYTICS GRID ──────────────────────────────────────
+     Each half-court is a 3×3 grid: columns are thirds of the
+     court's width (independent of the lanes, so the grid still
+     tiles the whole surface), rows are near/mid/deep.
+     Internal only — never drawn.
+     ────────────────────────────────────────────────────── */
+  grid:{ cols:3, rows:3 },
+
+  /* Analytics retention. Bounded so a long session's memory stays flat. */
+  analytics:{ maxRallies:400 },
+  volley:{ far:2.8, reach:1.85, punchBonus:1.18 },
+
+  /* The buffer must span the gap between the ball crossing the net — the
+     moment the player is allowed to swing — and it actually entering the
+     strike window. Measured: serve 667ms, drive 583ms, lob 904ms. A 420ms
+     buffer punished releasing exactly on the net crossing, which is the one
+     timing the rules explicitly permit. 1.2s clears the worst case with room
+     to spare, while still letting a wild early swing expire. */
+  swingBuffer:{ buffer:1.2, preSwing:0.30, armWindow:2.2 },
+
+  swing:{
+    windowGood:0.42, windowPerfect:0.16, cooldown:0.14,
+    // Base charge time, used by normal and lob — their feel is unchanged.
+    maxCharge:0.80,
+    // The fast shot charges on its own, slower clock: 1.5x the base. A hard
+    // fast shot now costs real commitment and thinking time, while a tap or
+    // a lob still responds exactly as before.
+    fastCharge:1.20
+  },
+  /* ── SHOT FAMILY ─────────────────────────────────────────
+     Every shot is now "a horizontal speed + a landing target";
+     the solver derives the arc. That makes the three shots
+     genuinely distinct instead of variations on a lift constant.
+
+       normal — moderate speed, comfortably high arc, always in
+       lob    — slowest, highest arc, lands short-to-mid
+       fast   — low flat arc; power adds speed AND risk
+     ────────────────────────────────────────────────────── */
+  shot:{
+    /* Direct-launch shot table.
+       Each shot has (speedLo,speedHi) and (degLo,degHi) — charge interpolates
+       both through a quadratic curve (0%→30% of reach, 100%→100%). At 0-30%
+       the launch is too slow: gravity beats it and the ball falls short of
+       the net. At ~50% it just clears. At 100% it lands near the far
+       baseline. Verified numerically; behaviour is what the physics
+       produces, not what a solver forces. */
+    normal:{ launch:{ speedLo:11.5, speedHi:24.5, degLo:16, degHi:13   } },
+    lob:   { launch:{ speedLo:9.5,  speedHi:18.5, degLo:42, degHi:31   } },
+    fast:  { launch:{ speedLo:11.9, speedHi:26.0, degLo:16, degHi:10.5 } }
+  },
+  serve:{
+    tossDelay:0.22,
+    // Apex peaks just UNDER window.hi, so the ball hangs in the strike band
+    // for ~900ms instead of rocketing through it.
+    apex:1.4,
+    window:{ lo:1.45, hi:2.5 },
+    contactY:2.45,
+    // The service box, in z. Both sides aim here; the solver guarantees it.
+    box:{ lo:3.6, hi:6.4 },
+    normal:{ speed:12.0 },
+    fast:  { speed:15.0 },
+    aimFan:9,            // serve aim fan in degrees, left/right of straight
+    autoAfter:6.0,
+
+    /* ── Serve charge model ──────────────────────────────
+       Charge maps directly to launch speed and angle, and the
+       physics does the rest. Weak = slow & lofted, drops into
+       the net; ~50% clears and lands in the box; max is fast &
+       flat but can sail long. Verified: 10-30% net, 50-90% in,
+       100% ~40% long. Speeds are m/s, angles in degrees above
+       the horizontal. */
+    charge:{
+      speedLo:16.0, speedHi:25.5,   // launch speed, weak → max charge
+      degLo:7.5,    degHi:3.6,       // launch angle: lofted → flat
+      fastBonus:1.2                  // a committed fast serve adds a little pace
+    }
+  },
+  rally:{ step:0.06, every:6, cap:1.35 },
+  /* ── CPU LEVELS ──────────────────────────────────────────
+     Add a level by adding a key here and pointing CFG.aiLevel
+     at it. Nothing else needs to change.
+
+     aimSpread is expressed as a FRACTION OF THE PLAYER'S ZONE,
+     not of the court. At 0.8 the CPU aims inside 80% of the box
+     the player can actually reach — which is what makes the
+     rally sustainable. A level that aims wider than 1.0 will
+     hit balls the clamped player physically cannot reach.
+     ────────────────────────────────────────────────────── */
+  aiLevel:"intermediate",
+  aiLevels:{
+    /* Four difficulties. Per spec, every level shares the PLAYER'S physics —
+       shot speed, charge time, shots available, hit judgement. What changes
+       is judgement and error, never a hidden stat. The one sanctioned
+       exception is Pro's 1.1× movement, called out in the brief. No level
+       predicts the future or reads player input: reaction and reach model a
+       skilled human, not an oracle. */
+
+    /* Beginner — slow to the ball, returns to soft middle, misses sometimes,
+       almost never volleys, rarely hits hard. */
+    beginner:{
+      reaction:0.28, speed:5.76, reach:1.35,
+      homeZ:28.60, standBack:1.9, zSpeed:6.32, reachFwd:2.9, reachBack:2.6,
+      aimSpread:1.9,          // wide scatter → soft, central returns
+      aimError:1.7, errFreq:1.5,
+      missChance:0.18, timingJitter:0.12,
+      lobChance:0.04, smashChance:0.05,
+      fatigue:0.30, serveDelay:1.1,
+      power:{lo:0.30,hi:0.60}, speedMul:1.0,
+      neverMiss:false
+    },
+    /* Intermediate — basically doesn't miss, aims for corners, uses lobs and
+       smashes, few volleys. Beats a beginner. */
+    intermediate:{
+      reaction:0.16, speed:5.76, reach:1.55,
+      homeZ:28.40, standBack:1.8, zSpeed:6.32, reachFwd:3.0, reachBack:2.7,
+      aimSpread:1.35,
+      aimError:0.9, errFreq:1.6,
+      missChance:0.05, timingJitter:0.05,
+      lobChance:0.16, smashChance:0.30,
+      fatigue:0.22, serveDelay:0.9,
+      power:{lo:0.42,hi:0.90}, speedMul:1.0,
+      neverMiss:false
+    },
+    /* Advanced — near-zero misses, comes forward, volleys a lot, builds
+       rallies, wrong-foots you, sharp smashes. */
+    advanced:{
+      reaction:0.10, speed:5.76, reach:1.75,
+      homeZ:28.08, standBack:1.7, zSpeed:6.32, reachFwd:3.1, reachBack:2.8,
+      aimSpread:0.95,
+      aimError:0.45, errFreq:1.7,
+      missChance:0.015, timingJitter:0.02,
+      lobChance:0.14, smashChance:0.6,
+      fatigue:0.12, serveDelay:0.75,
+      power:{lo:0.55,hi:0.98}, speedMul:1.0,
+      forwardBias:0.55,       // tends to take the net
+      neverMiss:false
+    },
+    /* Pro — Advanced plus 1.1× movement, very fast volley reads, net-first,
+       hunts deep corners, handles lobs. Still human: no input pre-reading. */
+    pro:{
+      reaction:0.07, speed:5.76, reach:1.9,
+      homeZ:27.6, standBack:1.4, zSpeed:6.32, reachFwd:3.4, reachBack:2.9,
+      aimSpread:0.68,
+      aimError:0.28, errFreq:1.8,
+      missChance:0.004, timingJitter:0.01,
+      lobChance:0.12, smashChance:0.8,
+      fatigue:0.05, serveDelay:0.6,
+      power:{lo:0.62,hi:1.0}, speedMul:1.1,   // the one sanctioned edge
+      forwardBias:0.78,
+      neverMiss:false
+    }
+  },
+  gesture:{
+    deadZone:0.055,   // fraction of the screen short edge ⇒ below this is a tap
+    commit:0.10,      // beyond this ⇒ a directional shot (fast/lob) can register
+    fullPower:0.30,   // swipe length at which power saturates
+    /* Direction thresholds for slide-based shot select (see classify()).
+       ny is the vertical component of the swipe, −1 = straight up (forward),
+       +1 = straight down (back). A forward slide steeper than fwdThresh is
+       FAST; a backward pull steeper than lobThresh (and long enough) is LOB;
+       everything between — including slight pulls and mostly-sideways drags —
+       is FLAT. Tuned so the intended shot comes out without fussy precision:
+       a clear up-flick = FAST, a clear down-drag = LOB, anything ambiguous
+       falls to the safe neutral FLAT. */
+    fwdThresh:0.35,   // up-component past this ⇒ FAST
+    lobThresh:0.55,   // down-component past this ⇒ LOB (needs a deliberate pull)
+    lobCommit:0.14,   // and the swipe must be at least this long for a LOB
+    // Hard ceiling. The gesture vector is truncated to this length before any
+    // power/aim maths, so dragging halfway across the screen behaves exactly
+    // like a swipe that just reached the cap — no runaway input, and the
+    // on-screen vector stops growing so what you see is what you get.
+    maxDist:0.34,
+    // Safety valve only — a pointer that never reports an up event must not
+    // lock the player out. It has to sit well clear of fastCharge (1.20s),
+    // or a fully-charged fast shot would fire itself while the player was
+    // still legitimately waiting for the ball to cross the net.
+    maxHold:3.2,
+    tapGrace:0.30     // a fast tap still registers even with a little jitter
+  },
+  match:{ target:11, margin:2 },
+  fx:{ maxParticles:200, trail:22 }
+};
+
+CFG.horizonY = CFG.H*CFG.horizonFrac;
+
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const rand=(a,b)=>a+Math.random()*(b-a);
+
+/* ── Return area geometry ────────────────────────────────────
+   The player covers an ellipse centred on `area.lead` metres
+   ahead of their standing point, stretched forward and clipped
+   short behind. Membership is the standard ellipse test with a
+   different radius fore and aft.
+   ────────────────────────────────────────────────────────── */
+const TRACK_SPEED = (CFG.court.hw*2)/CFG.player.trackTime;  // full width / trackTime
+
+/** Is the ball within the far-side player's reach right now? Mirrors the gate
+    the AI uses before striking, so a remote human is held to the same reach
+    and cannot hit balls it hasn't run down. */
+function cpuCanReturn(ball, cpuA){
+  if(!ball.live) return false;
+  if(ball.isServe && ball.bounces===0) return false;   // serves must bounce
+  const A=CFG.aiLevels[CFG.aiLevel]||CFG.aiLevels.intermediate;
+  const dz=ball.z-cpuA.z;
+  return dz>-A.reachBack && dz<A.reachFwd && ball.y<2.8 &&
+         Math.abs(ball.x-cpuA.x)<A.reach;
+}
+
+/** ITF line judgment, shared by every system (bounce scoring, CPU decisions,
+    analytics). A landing point (x,z) is IN if the ball's contact patch reaches
+    the line — i.e. within one ball radius of the nominal sidelines/baselines.
+    Lines are part of the court, so the boundary is inclusive. */
+function ballIn(x, z){
+  const C=CFG.court, r=CFG.ballR;
+  return Math.abs(x) <= C.hw + r && z >= -r && z <= C.len + r;
+}
+
+/** Forward-integrate a launch and return the z where it first lands, or null.
+    Uses the same gravity/drag as the live physics so the volley correction
+    predicts the real trajectory rather than an idealised one. */
+function predictLandDepth(x0,y0,z0,vy,vz){
+  const g=CFG.phys.g, dr=CFG.phys.airDrag!==undefined?CFG.phys.airDrag:0.9975, h=1/240;
+  let y=y0,z=z0;
+  for(let i=0;i<5000;i++){
+    vy-=g*h; const d=Math.pow(dr,h*60); vz*=d;
+    y+=vy*h; z+=vz*h;
+    if(y<0.03 && vy<0) return z;
+  }
+  return null;
+}
+
+/** High-point FAST-shot correction, shared by the player and the CPU.
+    Given a launch (from contact x,y,z with a forward `speed` and launch
+    `deg`) and the charge `p`, returns adjusted {speed,deg} that keep the
+    ball in the court when it is struck HIGH and would otherwise sail long.
+
+    It never touches lateral aim or charge — only the vertical launch (angle
+    down a touch = topspin feel) and the forward speed, scaled so the ball
+    lands at a charge-picked depth. Low contact, or a trajectory already
+    landing in, passes straight through unchanged. */
+function highFastCorrection(x0,y0,z0,speed,deg,p){
+  const high = clamp((y0-1.7)/1.05, 0, 1);       // 0 at shoulder-, 1 by smash
+  if(high<=0) return {speed,deg};
+  const ang0=deg*Math.PI/180;
+  const raw=predictLandDepth(x0,y0,z0,speed*Math.sin(ang0),speed*Math.cos(ang0));
+  if(raw===null || raw <= CFG.court.len-1.0) return {speed,deg};
+  const tgt = lerp(CFG.court.netZ+3.5, CFG.court.len-1.2, p);
+  const aimDepth = lerp(raw, tgt, high);
+  const remaining = aimDepth-z0, rawReach = raw-z0;
+  const k = Math.max(0.45, remaining/Math.max(rawReach,0.5));
+  return { speed: speed*k, deg: deg - high*2.0 };
+}
+
+/** Volley correction — applies to ANY no-bounce return (FLAT, FAST, or LOB
+    taken out of the air), not just high FAST shots. A volley is struck from
+    up near the net, so the baseline-calibrated launch table massively
+    overshoots — a flat volley sails 8-20m past the baseline, which is why
+    net play felt like a coin toss. This reins the trajectory back into the
+    court whenever it would clearly land long, while leaving lateral aim and
+    charge untouched (direction and pace-intent preserved).
+
+    New spec: a volley should carry deep and settle inside the baseline, so it
+    keeps the rally going rather than dumping short or flying out. We scale the
+    trajectory to a charge-picked depth in that deep band — never past the
+    baseline — so every volley clears the net, carries deep, and stays in. */
+function volleyCorrection(x0,y0,z0,speed,deg,p){
+  const ang0=deg*Math.PI/180;
+  const raw=predictLandDepth(x0,y0,z0,speed*Math.sin(ang0),speed*Math.cos(ang0));
+  // Target depth band: rally-continuing depth, kept safely INSIDE the
+  // baseline (not right on it) so flat/fast volleys don't nick out. ~60% of
+  // the way from the service line toward the baseline, up to ~2.5m inside it.
+  const svLine = CFG.court.len - CFG.serve.box.lo;          // service line (far)
+  const near = lerp(svLine, CFG.court.len, 0.60);           // ~60% toward baseline
+  const far  = CFG.court.len - 2.5;                         // 2.5m inside baseline
+  const tgt  = lerp(near, far, clamp(p, 0, 1));
+  if(raw===null){
+    // Falling short of the net or not reaching — give it enough to carry deep.
+    return {speed:speed*1.15, deg};
+  }
+  const k = clamp((tgt-z0)/Math.max(raw-z0,0.5), 0.5, 1.35);
+  return { speed: speed*k, deg };
+}
+
+/** Centre of the return area for a player standing at (x,z). */
+function areaCentre(x,z){
+  return { x, z: z + CFG.area.lead };
+}
+/** Is (bx,bz) inside the return area of a player standing at (px,pz)? */
+function inArea(bx,bz,px,pz){
+  const c=areaCentre(px,pz);
+  const dx=bx-c.x, dz=bz-c.z;
+  return dx*dx + dz*dz <= CFG.area.radius*CFG.area.radius;
+}
+function areaDepth(bx,bz,px,pz){
+  const c=areaCentre(px,pz);
+  const dx=bx-c.x, dz=bz-c.z;
+  return clamp(1 - Math.hypot(dx,dz)/CFG.area.radius, 0, 1);
+}
+/** Analytics grid column — thirds of the court width, tiling the full
+    surface. This was defined in the old lane-geometry block and got deleted
+    with it, while Analytics.cellOf still called it: every shot log then threw
+    a ReferenceError, which the loop guard swallowed as a dead frame. */
+function gridCol(x){
+  const t=(x+CFG.court.hw)/(CFG.court.hw*2);
+  return clamp(Math.floor(t*CFG.grid.cols),0,CFG.grid.cols-1);
+}
+
+/* Active CPU level. Swap CFG.aiLevel to change difficulty. */
+const AI = () => CFG.aiLevels[CFG.aiLevel];
+
+const Layout={
+  portrait:false,
+  check(){
+    const p=window.innerHeight>window.innerWidth*1.08;
+    if(p!==this.portrait){ this.portrait=p; document.body.classList.toggle("portrait",p); return true; }
+    return false;
+  }
+};
+
+/* ─── AUDIO ─── */
+const Snd=(()=>{
+  let ctx=null,master=null,on=true,chargeOsc=null,chargeGain=null,shelf=null,warm=null;
+  function init(){
+    if(ctx)return;
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;
+    ctx=new AC();
+    master=ctx.createGain(); master.gain.value=.34;
+    /* Master tone shaping, retuned for clarity. The old chain buried the mix:
+       a big low-mid bump (+4.5dB@260) made it boomy, a steep high-shelf cut
+       (-9dB@3200) plus a low lowpass (7.2k) made it muffled. New balance:
+         • a HIGH-PASS lifts the boxy low end so hits sound crisp not thuddy;
+         • a gentle low-mid CUT removes the congestion around 300Hz;
+         • a small PRESENCE lift adds intelligibility in the 3-4kHz band;
+         • the top is opened up (lowpass at 12kHz) for air without harshness.
+       Net effect: less bass, clearer mids/highs, easier on the ears over a
+       long session — without sounding thin or over-EQ'd. */
+    const hp=ctx.createBiquadFilter();
+    hp.type="highpass"; hp.frequency.value=180; hp.Q.value=0.7;
+    warm=ctx.createBiquadFilter();
+    warm.type="peaking"; warm.frequency.value=320; warm.Q.value=1.0; warm.gain.value=-3.0;
+    shelf=ctx.createBiquadFilter();
+    shelf.type="peaking"; shelf.frequency.value=3400; shelf.Q.value=0.8; shelf.gain.value=2.5;
+    const cap=ctx.createBiquadFilter();
+    cap.type="lowpass"; cap.frequency.value=12000; cap.Q.value=0.5;
+    master.connect(hp); hp.connect(warm); warm.connect(shelf); shelf.connect(cap); cap.connect(ctx.destination);
+  }
+  function resume(){ if(ctx&&ctx.state==="suspended")ctx.resume(); }
+  function suspend(){ if(ctx&&ctx.state==="running"){ try{ctx.suspend();}catch(e){} } }
+  function tone({f=440,to=null,dur=.1,type="sine",vol=.3,delay=0}){
+    if(!on||!ctx)return;
+    const t=ctx.currentTime+delay,o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,t);
+    if(to)o.frequency.exponentialRampToValueAtTime(Math.max(1,to),t+dur);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.005);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+.02);
+  }
+  function noise({dur=.06,vol=.18,hp=1400,lp=null}){
+    if(!on||!ctx)return;
+    const n=Math.floor(ctx.sampleRate*dur),b=ctx.createBuffer(1,n,ctx.sampleRate),d=b.getChannelData(0);
+    for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);
+    const s=ctx.createBufferSource(); s.buffer=b;
+    const f=ctx.createBiquadFilter(); f.type="highpass"; f.frequency.value=hp;
+    const gn=ctx.createGain(); gn.gain.value=vol;
+    s.connect(f);
+    if(lp){
+      const l=ctx.createBiquadFilter(); l.type="lowpass"; l.frequency.value=lp;
+      f.connect(l); l.connect(gn);
+    }else{
+      f.connect(gn);
+    }
+    gn.connect(master); s.start();
+  }
+  function stopCharge(){
+    if(!chargeOsc||!ctx)return;
+    const t=ctx.currentTime;
+    try{
+      chargeGain.gain.cancelScheduledValues(t);
+      chargeGain.gain.setValueAtTime(Math.max(chargeGain.gain.value,.0001),t);
+      chargeGain.gain.exponentialRampToValueAtTime(.0001,t+.05);
+      chargeOsc.stop(t+.08);
+    }catch(e){}
+    chargeOsc=null; chargeGain=null;
+  }
+  return{
+    init,resume,suspend,
+    get enabled(){return on;},
+    toggle(){ on=!on; if(!on)stopCharge(); else resume(); return on; },
+    chargeStart(){
+      if(!on||!ctx||chargeOsc)return;
+      chargeOsc=ctx.createOscillator(); chargeGain=ctx.createGain();
+      chargeOsc.type="sawtooth"; chargeOsc.frequency.value=70;
+      chargeGain.gain.value=.0001;
+      const f=ctx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=520;
+      chargeOsc.connect(f); f.connect(chargeGain); chargeGain.connect(master);
+      chargeOsc.start();
+      chargeGain.gain.exponentialRampToValueAtTime(.05,ctx.currentTime+.09);
+    },
+    chargeUpdate(p){ if(chargeOsc&&ctx) chargeOsc.frequency.setTargetAtTime(70+p*130,ctx.currentTime,.04); },
+    chargeStop:stopCharge,
+    /* Hits are built from a tight body + a short mid click. Retuned brighter
+       and less bassy per the sound pass: the fundamental sits higher and the
+       downward sweep is shallower, so strikes read as a crisp "tock" rather
+       than a muddy thud, and stay clear over a long rally. */
+    hit(power,perfect){
+      const vary=rand(0.94,1.06);
+      const f=(perfect?430:340)*(.9+power*.3)*vary;
+      tone({f,to:f*.62,dur:.10,type:"triangle",vol:.26});        // body (tighter, higher)
+      tone({f:f*2.6,to:f*1.3,dur:.06,type:"triangle",vol:.14});  // click
+      noise({dur:.04,vol:.06+power*.05,hp:1600,lp:4200});
+      if(perfect) tone({f:f*3.0,dur:.14,type:"sine",vol:.08,delay:.02});
+    },
+    volley(){
+      const vary=rand(0.95,1.05);
+      tone({f:520*vary,to:340*vary,dur:.08,type:"triangle",vol:.24});
+      noise({dur:.03,vol:.07,hp:1600,lp:4200});
+    },
+    /* FAST volley — the decisive put-away. Punchier and brighter than a plain
+       volley: a sharp crack with a bit more pace and top-end so it lands as
+       an attacking blow (② impact reinforcement). */
+    fastVolley(){
+      const v=rand(0.96,1.04);
+      tone({f:600*v,to:300*v,dur:.11,type:"triangle",vol:.34});
+      tone({f:1180*v,to:760*v,dur:.07,type:"square",vol:.12});
+      noise({dur:.05,vol:.13,hp:1800,lp:6000});
+    },
+    /* Super Fast Shot — a whip-crack: sharp click on top of a punchy body,
+       plus a bright shimmer. Kept short so chained super shots don't fatigue. */
+    superFast(){
+      const v=rand(0.97,1.03);
+      tone({f:560*v,to:220*v,dur:.14,type:"triangle",vol:.36});
+      tone({f:1120*v,to:640*v,dur:.09,type:"square",vol:.13});
+      noise({dur:.055,vol:.13,hp:1800,lp:6800});
+      tone({f:1980*v,to:2600*v,dur:.12,type:"sine",vol:.09,delay:.02});
+    },
+    toss(){ tone({f:300,to:430,dur:.16,type:"sine",vol:.10}); },
+    /* ── UI / menu sounds ── */
+    uiHover(){ tone({f:520,to:640,dur:.05,type:"sine",vol:.05}); },
+    uiSelect(){ tone({f:440,to:660,dur:.10,type:"triangle",vol:.14}); tone({f:880,dur:.06,type:"sine",vol:.06,delay:.02}); },
+    uiConfirm(){ [523,784].forEach((f,i)=>tone({f,dur:.14,type:"triangle",vol:.15,delay:i*.05})); },
+    uiCancel(){ tone({f:400,to:220,dur:.12,type:"sine",vol:.12}); },
+    matchStart(){ [392,523,659].forEach((f,i)=>tone({f,dur:.18,type:"sine",vol:.14,delay:i*.08})); },
+    matchFound(){ [523,659,784,1047].forEach((f,i)=>tone({f,dur:.16,type:"triangle",vol:.16,delay:i*.06})); },
+    ace(){ [330,440,554].forEach((f,i)=>tone({f,dur:.20,type:"triangle",vol:.18,delay:i*.06})); },
+    cpuHit(power){
+      const vary=rand(0.94,1.06);
+      const f=210*(.85+power*.3)*vary;
+      tone({f,to:f*.5,dur:.13,type:"sine",vol:.28});
+      tone({f:f*2.2,to:f,dur:.06,type:"triangle",vol:.10});
+      noise({dur:.04,vol:.06,hp:800,lp:2400});
+    },
+    bounce(v){
+      tone({f:120+v*22,to:78,dur:.09,type:"sine",vol:clamp(.07+v*.02,.05,.20)});
+      noise({dur:.026,vol:.035,hp:400,lp:1500});
+    },
+    net(){ tone({f:110,to:62,dur:.20,type:"triangle",vol:.17}); noise({dur:.10,vol:.07,hp:300,lp:1200}); },
+    whiff(){ noise({dur:.11,vol:.06,hp:260,lp:900}); tone({f:150,to:92,dur:.12,type:"sine",vol:.07}); },
+    step(){ tone({f:250,to:180,dur:.06,type:"sine",vol:.06}); },
+    pointWin(){ [294,392,494].forEach((f,i)=>tone({f,dur:.20,type:"sine",vol:.20,delay:i*.07})); },
+    pointLose(){ [220,165].forEach((f,i)=>tone({f,dur:.24,type:"sine",vol:.18,delay:i*.09})); },
+    ui(){ tone({f:420,to:360,dur:.05,type:"sine",vol:.10}); },
+    tick(){ tone({f:520,dur:.028,type:"sine",vol:.06}); },
+    win(){ [262,330,392,523].forEach((f,i)=>tone({f,dur:.36,type:"triangle",vol:.20,delay:i*.11})); },
+    lose(){ [247,208,165,131].forEach((f,i)=>tone({f,dur:.38,type:"sine",vol:.18,delay:i*.13})); }
+  };
+})();
+
+/* ─── CANVAS / CAMERA ─── */
+const cv=document.getElementById("game");
+const ctx2=cv.getContext("2d",{alpha:false});
+if(!ctx2){
+  // Nothing works without a 2D context. Say so plainly rather than throwing
+  // a stack trace at someone whose browser simply cannot run this.
+  document.body.innerHTML='<div style="display:flex;align-items:center;justify-content:center;'+
+    'height:100%;font-family:system-ui;color:#5ff5e8;text-align:center;padding:24px;line-height:1.7">'+
+    'This browser cannot run PULSE COURT.<br>Canvas 2D is unavailable.<br>'+
+    '<span style="opacity:.6;font-size:13px">Try Chrome, Safari, Firefox or Edge.</span></div>';
+  throw new Error("canvas 2d unavailable");
+}
+let view={scale:1,ox:0,oy:0,dpr:1};
+
+/* The drawn-content rectangle in DESIGN space (1080×1980), used by resize()
+   to scale the play area to the viewport. It spans from the top decoration
+   line down to the near touch line, full court width, plus a reserved band at
+   the top for the score HUD so scaling never pushes the score off-screen or
+   onto the court. Cached — the projection is static. */
+let _courtBounds=null;
+function courtBounds(){
+  if(_courtBounds) return _courtBounds;
+  const C=CFG.court, m=0.4;
+  // Sample the court's extreme projected points.
+  const zs=[C.len+1.0, -6.9];                 // far top decoration → near touch line
+  const xs=[-C.hw-m, C.hw+m];
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  for(const z of zs) for(const x of xs){
+    const p=Cam.project(x,0,z);
+    if(!p.visible) continue;
+    minX=Math.min(minX,p.sx); maxX=Math.max(maxX,p.sx);
+    minY=Math.min(minY,p.sy); maxY=Math.max(maxY,p.sy);
+  }
+  // Reserve a band above the court for the score HUD (drawn at design y≈232).
+  const hudTop = 210;                          // keep the score fully on-screen
+  const top = Math.min(minY, hudTop);
+  const bottom = maxY;
+  // Baseline corner half-width (design px) — the widest point that must never
+  // be cropped. The deep-back corners are wider but croppable.
+  const blL=Cam.project(-C.hw, 0, 0), blR=Cam.project(C.hw, 0, 0);
+  const baseHalf = (blL.visible && blR.visible) ? (blR.sx-blL.sx)/2 : (maxX-minX)/2;
+  _courtBounds={
+    top, bottom,
+    wDesign:(maxX-minX),
+    hDesign:(bottom-top),
+    cx:(minX+maxX)/2,
+    baseHalf
+  };
+  return _courtBounds;
+}
+let screenShort=1;
+
+function resize(){
+  Layout.check();
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const r=cv.getBoundingClientRect();
+  const w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  /* Fit the drawn content to the viewport.
+
+     PROBLEM this replaces: the previous version fitted a bounding BOX and
+     centred on its centroid. On PC (wide) it scaled by width and let the far
+     court run off the top; on phones it reserved the design's empty bottom
+     band and shrank the court into a central strip. Both came from centring
+     on the box centre and mixing width/height scale.
+
+     FIX: compute the actual drawn-content rectangle (top decoration down to
+     the near touch line, full court width), then pick the largest scale at
+     which that whole rectangle fits BOTH dimensions — so nothing is ever
+     clipped, on any aspect. Anchor it to the top of the safe area with a
+     small margin, so on tall phones the court rises to fill the screen
+     instead of floating in the middle, and the leftover space sits at the
+     bottom where the thumb rests. */
+  const cb=courtBounds();
+  const pad = 0.03;                              // 3% breathing room
+  const availW = w*(1-pad*2);
+  const availH = h*(1-pad*2);
+
+  /* Base scale: the largest that fits the whole content rect in both axes —
+     this alone guarantees the full court shows on every screen (fixes the PC
+     top-clipping). On tall screens width is the binding limit, which would
+     leave vertical slack; there we allow the scale to grow toward the
+     height-fit, letting only the extreme near-corner TIPS spill past the
+     sides. The scoring court (baseline to baseline) is checked to stay fully
+     on-screen, so nothing that matters is ever clipped. */
+  const sFitBoth = Math.min(availW/cb.wDesign, availH/cb.hDesign);
+  const sFitH    = availH/cb.hDesign;
+  // How far we can push toward the height-fit before the BASELINE corners
+  // (not the deep-back tips) would leave the frame.
+  const baseHalfW = cb.baseHalf;                 // design px, baseline half-width
+  const maxScaleForBaseline = (w/2 - 2) / baseHalfW;
+  const s = Math.min(sFitH, Math.max(sFitBoth, Math.min(sFitH, maxScaleForBaseline)));
+
+  const ox = w/2 - cb.cx*s;
+  const oy = h*pad - cb.top*s;
+  view={ scale:s, ox, oy, dpr };
+  screenShort=Math.min(r.width,r.height);
+}
+addEventListener("resize",resize,{passive:true});
+addEventListener("orientationchange",()=>{ setTimeout(resize,60); setTimeout(resize,260); },{passive:true});
+if(window.visualViewport) visualViewport.addEventListener("resize",resize,{passive:true});
+
+const Cam={
+  x:CFG.cam.x,y:CFG.cam.y,z:CFG.cam.z,
+  project(x,y,z){
+    const dz=z-this.z;
+    if(dz<=0.4) return {visible:false,sx:0,sy:0,scale:0};
+    /* Focal length is derived from the canvas WIDTH, not its height.
+       With a portrait canvas the old height-driven formula tripled the
+       horizontal zoom and threw the court off both sides — `k` scales x
+       and y alike, so the axis that constrains the view has to set it.
+       Width is that axis: the court is 8.4m across and must always fit. */
+    const f=(CFG.W*0.5)/Math.tan(CFG.cam.fovX*0.5);
+    const k=f/dz;
+    return {visible:true,sx:CFG.W*0.5+(x-this.x)*k,sy:CFG.horizonY-(y-this.y)*k,scale:k};
+  },
+  follow(px,dt){
+    // Only lateral sway now. The player holds the baseline, so there is no
+    // forward motion for the camera to trail.
+    this.x=lerp(this.x,px*CFG.cam.sway,1-Math.pow(1-CFG.cam.follow,dt*60));
+  },
+  reset(){ this.x=CFG.cam.x; this.z=CFG.cam.z; }
+};
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT — one gesture, context decides the shot.
+   Press sets a run destination AND starts the swing.
+   The swipe vector from the press point picks type + aim.
+   ═══════════════════════════════════════════════════════════ */
+const Input=(()=>{
+  const st={
+    // Shot input only. Nothing here influences where the player stands.
+    holding:false,
+    chargeT:0,
+    released:null,
+    gx:0,gy:0,gLen:0,
+    clamped:false,
+    shotPreview:"normal",
+    px:0,py:0,         // pointer, screen px
+    active:false
+  };
+  const keys={l:false,r:false};
+  let pid=null, ox=0, oy=0, lastPreview="normal";
+  const G=CFG.gesture;
+
+  /* ── Positioning ──────────────────────────────────────────
+     The press point becomes a court position. It is captured on
+     touch-down and updated while the finger moves — but only until
+     the swipe commits to a shot. After that the position is frozen,
+     because the same finger movement that aims the shot would
+     otherwise drag the player across the court with it.
+     ─────────────────────────────────────────────────────── */
+  let posX=0, posZ=CFG.player.baseZ, posFrozen=false, posSet=false;
+
+  /** Screen point → court position, by inverting the actual projection.
+      Hardcoded screen fractions would drift out of sync the moment the
+      camera moves; this asks the camera itself where the ground is. */
+  function screenToCourt(clientX,clientY){
+    const r=cv.getBoundingClientRect();
+    // screen px → canvas design space
+    const cx=((clientX-r.left)*view.dpr - view.ox)/view.scale;
+    const cy=((clientY-r.top )*view.dpr - view.oy)/view.scale;
+
+    // Invert: for the ground plane (y=0), sy = horizonY + camY*f/dz
+    const f=(CFG.W*0.5)/Math.tan(CFG.cam.fovX*0.5);
+    const dy=cy-CFG.horizonY;
+    let z;
+    if(dy<=1){
+      z=CFG.player.maxZ;                       // above the horizon: clamp forward
+    }else{
+      const dz=(Cam.y*f)/dy;                   // distance from camera along z
+      z=Cam.z+dz;
+    }
+    z=clamp(z,CFG.player.minZ,CFG.player.maxZ);
+
+    // x follows from the same projection at that depth
+    const dzc=Math.max(z-Cam.z,0.5);
+    const k=f/dzc;
+    const x=Cam.x+(cx-CFG.W*0.5)/k;
+    return { x:clamp(x,-CFG.court.hw-0.6,CFG.court.hw+0.6), z };
+  }
+
+  /** The player's standing target. Persists after the finger lifts: you put
+      them somewhere, they stay there. Only a long idle drifts them back
+      toward the middle, so a rally doesn't strand you at a sideline forever. */
+  function posTarget(){
+    return posSet ? {x:posX,z:posZ} : null;
+  }
+
+  /* Shot type is chosen by SLIDE DIRECTION alone:
+       • forward (up)         → FAST
+       • slight pull back      → FLAT (the game's "normal")
+       • large pull back       → LOB
+     A tap or tiny drag defaults to FLAT, the neutral rally shot. The
+     thresholds are on the vertical component so left/right aiming never
+     changes the shot type — you can aim a FAST cross-court by swiping
+     up-and-across, and the up component still reads as FAST. */
+  function classify(){
+    const len=st.gLen/(screenShort||1);
+    if(len<G.deadZone) return "normal";               // tap → FLAT
+    const ny=st.gLen>0?(st.gy/st.gLen):0;             // -1 up(forward) … +1 down(back)
+    // Forward slide of any real length → FAST.
+    if(ny < -G.fwdThresh && len>=G.commit) return "fast";
+    // Large backward pull → LOB.
+    if(ny >  G.lobThresh && len>=G.lobCommit) return "lob";
+    // Everything else (slight pulls, sideways, short drags) → FLAT.
+    return "normal";
+  }
+  function updateGesture(x,y){
+    st.px=x; st.py=y;
+    let gx=x-ox, gy=y-oy;
+    let len=Math.hypot(gx,gy);
+    // Truncate at the ceiling. Everything downstream — power, aim, and the
+    // drawn vector — reads the clamped value, so an overlong drag is
+    // indistinguishable from one that just hit the cap.
+    const cap=CFG.gesture.maxDist*(screenShort||1);
+    if(len>cap){ const k=cap/len; gx*=k; gy*=k; len=cap; st.clamped=true; }
+    else st.clamped=false;
+    st.gx=gx; st.gy=gy; st.gLen=len;
+    const p=classify();
+    if(p!==lastPreview){ lastPreview=p; if(p!=="normal")Snd.tick(); }
+    st.shotPreview=p;
+
+    // Position follows the finger — but only until the drag becomes a shot.
+    // Past the dead zone the finger is aiming, not walking, so the target
+    // freezes at wherever the player had reached.
+    if(!posFrozen){
+      const c=screenToCourt(x,y);
+      posX=c.x; posZ=c.z; posSet=true;
+      if(len/(screenShort||1) > CFG.gesture.deadZone) posFrozen=true;
+    }
+  }
+  function beginHold(){
+    Snd.init(); Snd.resume();
+    st.holding=true; st.chargeT=0;
+    Snd.chargeStart();
+  }
+  /** Charge time to full power. The DISPLAYED gauge always uses a single
+      unified clock (maxCharge) so that switching shot type mid-charge never
+      makes the gauge jump or reset — only the shot type changes, exactly as
+      the spec requires. Per-shot feel is applied at release() instead. */
+  function chargeScaleFor(shot){
+    return CFG.swing.maxCharge;
+  }
+
+  function release(){
+    if(!st.holding)return;
+    const shot=classify();
+    const short=screenShort||1;
+    const len=st.gLen/short;
+    /* Charge is HOLD TIME only. The swipe sets shot type and aim direction;
+       it no longer contributes to power. So a short flick and a long drag at
+       the same hold time hit with identical pace — the meter you watch fill
+       is exactly the power you get. All types read the same unified hold
+       clock; a small floor keeps a quick tap from being feeble. */
+    const holdPow=clamp(st.chargeT/chargeScaleFor(shot),0,1);
+    let power;
+    if(shot==="normal"){
+      power = holdPow*0.80 + 0.20;
+    }else if(shot==="fast"){
+      power = holdPow*0.85 + 0.15;
+    }else{ // lob
+      power = holdPow*0.80 + 0.20;
+    }
+    /* Aim is the swipe's DIRECTION, honoured literally.
+       - lateral: -1 left … +1 right
+       - forward: 0 straight … 1 dead-forward (used to bias corner vs straight)
+       A tap has no direction, so normal shots without a swipe go straight
+       ahead. Everything else follows the actual angle the finger drew.
+       Lob mirrors laterally (a drawn bowstring). */
+    let aim=0, dirBias=1;
+    if(st.gLen>2){
+      const nx=st.gx/st.gLen, ny=-st.gy/st.gLen;   // -gy = up = forward
+      /* Aim from the swipe's ACTUAL angle rather than just its lateral
+         fraction. The old `aim=nx` used sin(θ), which compressed steep
+         diagonal swipes (a 45° drag read as only ~0.7). Mapping the angle
+         itself, normalised to a reference spread, makes the drawn direction
+         track the ball direction more closely in the usable range — a 20°
+         swipe now feels like a 20° shot — while the ±1 clamp still caps it so
+         a wild sideways fling can't exceed the fan (and can still go out).
+         Direction sense is always exact; only the angle scaling changed. */
+      const ang = Math.atan2(nx, Math.max(Math.abs(ny),1e-3));  // rad from straight-ahead
+      const ref = 32*Math.PI/180;                  // swipe angle that maps to full aim
+      aim = clamp(ang/ref, -1, 1);
+      dirBias = clamp(ny, 0, 1);                    // forward component
+      /* FLAT and LOB are backward-pull shots — you draw the racket back and it
+         springs forward, so the ball goes OPPOSITE to the drawn lateral
+         direction (a bowstring). FAST is a forward slide and tracks the swipe
+         directly. Reversing FLAT makes "pull back-left → hit cross to the
+         right" feel natural. */
+      if(shot==="lob" || shot==="normal") aim=-aim;
+    }
+    st.released={shot,power,aim,dirBias};
+    st.holding=false; st.chargeT=0;
+    st.gLen=0; st.gx=st.gy=0; st.shotPreview="normal"; lastPreview="normal";
+    Snd.chargeStop();
+  }
+  function cancel(){
+    if(st.holding){ st.holding=false; st.chargeT=0; Snd.chargeStop(); }
+    st.released=null; st.gLen=0; st.gx=st.gy=0;
+    st.shotPreview="normal"; lastPreview="normal"; st.active=false; pid=null;
+    posFrozen=false;   // posSet is deliberately kept: the player stays put
+  }
+
+  /* Pointer Events — mouse and touch share one path, so PC and phone match. */
+  cv.addEventListener("pointerdown",e=>{
+    if(pid!==null)return;
+    if(Match.state!=="playing")return;
+    e.preventDefault();
+    pid=e.pointerId;
+    try{ cv.setPointerCapture(pid); }catch(err){}
+    ox=e.clientX; oy=e.clientY;
+    st.active=true;
+    posFrozen=false;                 // a new press may reposition again
+
+    updateGesture(e.clientX,e.clientY);
+    beginHold();
+  });
+  cv.addEventListener("pointermove",e=>{
+    if(e.pointerId!==pid)return;
+    e.preventDefault();
+    updateGesture(e.clientX,e.clientY);
+  });
+  function up(e){
+    if(e.pointerId!==pid)return;
+    e.preventDefault();
+    try{ cv.releasePointerCapture(pid); }catch(err){}
+    release(); st.active=false; pid=null;
+  }
+  cv.addEventListener("pointerup",up);
+  cv.addEventListener("pointercancel",e=>{ if(e.pointerId===pid) cancel(); });
+  cv.addEventListener("lostpointercapture",e=>{ if(e.pointerId===pid){ release(); st.active=false; pid=null; } });
+  cv.addEventListener("contextmenu",e=>e.preventDefault());
+
+  addEventListener("keydown",e=>{
+    const k=e.key.toLowerCase();
+    if(k==="a"||e.key==="ArrowLeft"){keys.l=true;e.preventDefault();}
+    if(k==="d"||e.key==="ArrowRight"){keys.r=true;e.preventDefault();}
+    if(k===" "&&!e.repeat){ if(Match.state==="playing"&&!st.holding) beginHold(); e.preventDefault(); }
+    if(k==="p"||k==="escape"){ Match.togglePause(); e.preventDefault(); }
+  });
+  addEventListener("keyup",e=>{
+    const k=e.key.toLowerCase();
+    if(k==="a"||e.key==="ArrowLeft")keys.l=false;
+    if(k==="d"||e.key==="ArrowRight")keys.r=false;
+    if(k===" "&&st.holding){
+      st.released={shot:"normal",power:clamp(st.chargeT/CFG.swing.maxCharge,0,1),aim:0};
+      st.holding=false; st.chargeT=0; Snd.chargeStop();
+    }
+  });
+
+  return{
+    st,
+    tick(dt){
+      if(st.holding){
+        st.chargeT=Math.min(st.chargeT+dt,G.maxHold);
+        Snd.chargeUpdate(clamp(st.chargeT/chargeScaleFor(st.shotPreview),0,1));
+        if(st.chargeT>=G.maxHold) release();   // never lock the player out
+      }
+
+    },
+    consumeRelease(){ const r=st.released; st.released=null; return r; },
+    posTarget,
+    get charge(){ return clamp(st.chargeT/chargeScaleFor(st.shotPreview),0,1); },
+    get origin(){ return {x:ox,y:oy}; },
+    cancel,
+    reset(){ cancel(); keys.l=keys.r=false; posSet=false; posX=0; posZ=CFG.player.baseZ; }
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   BALLISTIC SOLVER — the backbone of every shot in the game.
+
+   The previous version derived velocity from a chosen flight
+   time and ignored drag. Two failures followed: it always
+   picked the shortest flight (a ~20 m/s rocket that crossed
+   the player's strike window in 0.4s and was unreturnable),
+   and because the game integrates WITH drag, the ball landed
+   ~1.3m past where the maths said it would.
+
+   This version fixes the horizontal speed — which is what
+   "normal / fast / lob" actually means — then bisects the
+   launch angle until the simulated landing hits the target.
+   Speed and arc become independent, and because the search
+   runs the real integrator, drag is accounted for by
+   construction rather than corrected for afterwards.
+   ═══════════════════════════════════════════════════════════ */
+
+/** Integrate a trajectory exactly as stepBall does. Returns landing + net height. */
+function simulateFlight(x0,y0,z0,vx,vy,vz){
+  const g=CFG.phys.g, C=CFG.court, h=1/240;
+  let x=x0,y=y0,z=z0,netY=null;
+  for(let i=0;i<3000;i++){
+    const pz=z, py=y;
+    vy-=g*h;
+    const d=Math.pow(CFG.phys.airDrag,h*60);
+    vx*=d; vz*=d;
+    x+=vx*h; y+=vy*h; z+=vz*h;
+    if((pz-C.netZ)*(z-C.netZ)<0){
+      const t=(C.netZ-pz)/((z-pz)||1e-6);
+      netY=py+(y-py)*t;
+    }
+    if(y<0.03&&vy<0) return {landX:x,landZ:z,netY,flight:i*h};
+  }
+  return null;
+}
+
+/**
+ * Solve a shot at a GIVEN horizontal speed that lands on (tgtX,tgtZ).
+ * Returns null if no arc clears the net.
+ */
+function solveShot(x0,y0,z0,tgtX,tgtZ,speed){
+  const dz=tgtZ-z0;
+  if(Math.abs(dz)<0.1) return null;
+  const vz=Math.sign(dz)*speed;
+  const dir=Math.sign(dz);
+
+  // Bisect the launch angle: more vy => longer hang => lands further.
+  let lo=-3, hi=20, best=null;
+  for(let i=0;i<44;i++){
+    const vy=(lo+hi)/2;
+    const r=simulateFlight(x0,y0,z0,0,vy,vz);
+    if(!r){ hi=vy; continue; }
+    best={vy,r};
+    const err=(r.landZ-tgtZ)*dir;
+    if(Math.abs(r.landZ-tgtZ)<0.04) break;
+    if(err<0) lo=vy; else hi=vy;
+  }
+  if(!best||!best.r) return null;
+
+  // Lateral velocity follows from the solved flight time.
+  const vx=(tgtX-x0)/Math.max(best.r.flight,0.05);
+  const check=simulateFlight(x0,y0,z0,vx,best.vy,vz);
+  if(!check) return null;
+  return { vx, vy:best.vy, vz, netY:check.netY, flight:check.flight, landZ:check.landZ };
+}
+
+/**
+ * Find a shot that lands on target AND clears the net, easing the speed off
+ * if the requested pace can't be made to clear.
+ *
+ * `keepAim` (used for player shots) forbids the last-resort fallback from
+ * re-aiming down the middle: a deliberate wide swipe must stay wide, even
+ * when that means it lands out. Silently correcting it would undo exactly
+ * the precision the player is being asked to supply.
+ */
+function solveSafeShot(x0,y0,z0,tgtX,tgtZ,speed,margin,keepAim){
+  const need=CFG.court.netH+(margin!==undefined?margin:0.25);
+  for(const s of [speed,speed*0.88,speed*0.76,speed*0.64,speed*0.52]){
+    const r=solveShot(x0,y0,z0,tgtX,tgtZ,s);
+    if(r && r.netY!==null && r.netY>need) return r;
+  }
+  // Nothing cleared the net at the requested aim.
+  if(keepAim){
+    // Keep the aim, lob it high enough to clear. If that still fails the
+    // shot is simply a net error — the player's, not ours to fix.
+    const r=solveShot(x0,y0,z0,tgtX,tgtZ,7.5);
+    return r;
+  }
+  // CPU: a slow, high loop straight down the middle keeps the rally alive.
+  return solveShot(x0,y0,z0,0,tgtZ,7.5);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANALYTICS — every shot and every rally, recorded internally.
+
+   Shape:
+     Analytics.rallies = [ Rally, Rally, ... ]
+     Rally = { index, server, startedAt, shots:[Shot], result, winner, endedAt }
+     Shot  = { rally, index, by, type, speed, dirX, from:{x,z},
+               land:{x,z}, cell:{side,col,row,id}, result, t }
+
+   Nothing here is drawn. It exists so heatmaps, court-placement
+   charts, net/out rates and per-shot success rates can be built
+   later by reading the log rather than re-instrumenting the game.
+   ═══════════════════════════════════════════════════════════ */
+const Analytics=(()=>{
+  const rallies=[];
+  let cur=null;
+  let shotSeq=0;
+  let rallySeq=0;
+
+  /** Map a landing point to a 3×3 cell on whichever half it fell in. */
+  function cellOf(x,z){
+    const C=CFG.court;
+    const side = z < C.netZ ? "player" : "cpu";
+    // Grid columns are thirds of the court so the 3×3 tiles the whole
+    // surface. Lanes are quarter-width with gaps between them, so they
+    // would leave parts of the court unmappable.
+    const col = gridCol(x);
+    // rows: 0 = nearest that side's net, 2 = deepest (toward the baseline)
+    let t;
+    if(side==="player") t = 1 - (z/C.netZ);            // netZ->0 .. 0->1
+    else                t = (z-C.netZ)/(C.len-C.netZ); // netZ->0 .. len->1
+    const row = clamp(Math.floor(clamp(t,0,0.999)*CFG.grid.rows),0,CFG.grid.rows-1);
+    return { side, col, row, id:`${side}-${col}${row}` };
+  }
+
+  function beginRally(server){
+    // The log is bounded. Left unbounded it grows ~460 KB/hour, which is not
+    // a crash risk but is still a leak; capping keeps a long session flat
+    // while retaining far more history than any analysis screen needs.
+    if(rallies.length>=CFG.analytics.maxRallies){
+      rallies.splice(0, rallies.length-CFG.analytics.maxRallies+1);
+    }
+    cur={
+      // Monotonic, not rallies.length — the log is trimmed, so a length-based
+      // index would repeat and silently re-link shots to the wrong rally.
+      index:rallySeq++,
+      server,
+      startedAt:performance.now(),
+      shots:[],
+      result:null,
+      winner:null,
+      endedAt:null
+    };
+    rallies.push(cur);
+    return cur;
+  }
+
+  /** Log a shot at the moment of contact. `land` is the solver's prediction. */
+  function logShot({by,type,speed,dirX,from,land}){
+   try{
+    if(!cur) beginRally(by);
+    const s={
+      rally:cur.index,
+      index:cur.shots.length,
+      seq:shotSeq++,
+      by, type,
+      speed:+speed.toFixed(2),
+      dirX:+dirX.toFixed(3),
+      from:{ x:+from.x.toFixed(2), z:+from.z.toFixed(2) },
+      land: land ? { x:+land.x.toFixed(2), z:+land.z.toFixed(2) } : null,
+      cell: land ? cellOf(land.x,land.z) : null,
+      result:"in_flight",
+      t:performance.now()
+    };
+    cur.shots.push(s);
+    return s;
+   }catch(err){
+    // Analytics is observability, not gameplay. A failure here once cost a
+    // ReferenceError per shot that ate the frame the shot fired on — the
+    // log must never be able to do that again.
+    console.warn("[Analytics] logShot failed:",err);
+    return null;
+   }
+  }
+
+  /** Resolve the outcome of the most recent shot. */
+  function resolveLast(result,landActual){
+   try{
+    if(!cur||!cur.shots.length) return;
+    const s=cur.shots[cur.shots.length-1];
+    s.result=result;
+    if(landActual){
+      s.land={ x:+landActual.x.toFixed(2), z:+landActual.z.toFixed(2) };
+      s.cell=cellOf(landActual.x,landActual.z);
+    }
+   }catch(err){ console.warn("[Analytics] resolveLast failed:",err); }
+  }
+
+  function endRally(winner,result){
+    if(!cur) return;
+    cur.winner=winner;
+    cur.result=result;
+    cur.endedAt=performance.now();
+    cur.length=cur.shots.length;
+    cur=null;
+  }
+
+  /* ── Read-side helpers. These are what future analysis screens
+        will call; they derive everything from the log alone. ── */
+  function allShots(){ return rallies.flatMap(r=>r.shots); }
+
+  function heatmap(side,by){
+    const g=Array.from({length:CFG.grid.rows},()=>Array(CFG.grid.cols).fill(0));
+    for(const s of allShots()){
+      if(!s.cell||s.cell.side!==side) continue;
+      if(by&&s.by!==by) continue;
+      g[s.cell.row][s.cell.col]++;
+    }
+    return g;
+  }
+  function rates(by){
+    const ss=allShots().filter(s=>!by||s.by===by);
+    const n=ss.length||1;
+    const c=r=>ss.filter(s=>s.result===r).length;
+    return {
+      total:ss.length,
+      in:+(c("in")/n*100).toFixed(1),
+      net:+(c("net")/n*100).toFixed(1),
+      out:+((c("out_long")+c("out_wide"))/n*100).toFixed(1),
+      winners:c("winner")+c("ace")
+    };
+  }
+  function byType(by){
+    const out={};
+    for(const s of allShots()){
+      if(by&&s.by!==by) continue;
+      const t=out[s.type]||(out[s.type]={n:0,in:0,net:0,out:0});
+      t.n++;
+      if(s.result==="in"||s.result==="winner"||s.result==="ace") t.in++;
+      else if(s.result==="net") t.net++;
+      else if(s.result&&s.result.startsWith("out")) t.out++;
+    }
+    for(const k in out){
+      out[k].inPct=+(out[k].in/out[k].n*100).toFixed(1);
+    }
+    return out;
+  }
+  function summary(){
+    const done=rallies.filter(r=>r.endedAt!==null);
+    return {
+      rallies:done.length,
+      avgLength: done.length ? +(done.reduce((a,r)=>a+r.length,0)/done.length).toFixed(1) : 0,
+      longest: done.length ? Math.max(...done.map(r=>r.length)) : 0,
+      player:rates("player"),
+      cpu:rates("cpu"),
+      playerByType:byType("player")
+    };
+  }
+
+  return {
+    rallies, beginRally, logShot, resolveLast, endRally, cellOf,
+    allShots, heatmap, rates, byType, summary,
+    reset(){ rallies.length=0; cur=null; shotSeq=0; rallySeq=0; },
+    get current(){ return cur; },
+    dump(){ return JSON.stringify(rallies,null,2); }
+  };
+})();
+// Exposed for the future analysis screen / console inspection.
+window.PulseAnalytics = Analytics;
+
+/* ─── ENTITIES ─── */
+class Ball{
+  constructor(){
+    // The trail is a fixed pool written in a ring. Pushing a fresh object each
+    // frame allocated ~3,600 objects a minute for no reason; these are reused.
+    this.trail=[];
+    for(let i=0;i<CFG.fx.trail;i++) this.trail.push({x:0,y:0,z:0,live:false});
+    this.trailHead=0;
+    this.hardReset();
+  }
+  hardReset(){
+    this.x=0; this.y=1.05; this.z=CFG.player.baseZ+0.5;
+    this.vx=this.vy=this.vz=0;
+    this.clearTrail();
+    this.bounces=0;
+    this.live=false; this.mult=1; this.lastHitBy=null;
+    this.super=0;   // Super Fast Shot glow — decays over time
+    this.isServe=false; // true while a serve is in flight, until it bounces
+  }
+  clearTrail(){
+    for(const t of this.trail) t.live=false;
+    this.trailHead=0;
+  }
+  push(){
+    const t=this.trail[this.trailHead];
+    t.x=this.x; t.y=this.y; t.z=this.z; t.live=true;
+    this.trailHead=(this.trailHead+1)%this.trail.length;
+  }
+  /** Oldest→newest, with an age in 0..1. Skips slots never written. */
+  forEachTrail(fn){
+    const n=this.trail.length;
+    for(let i=0;i<n;i++){
+      const t=this.trail[(this.trailHead+i)%n];
+      if(t.live) fn(t,(i+1)/n);
+    }
+  }
+}
+class Actor{
+  constructor(z){ this.x=0; this.vx=0; this.z=z; this.swing=0; this.flash=0; }
+  reset(z){ this.x=0; this.vx=0; this.z=z; this.swing=0; this.flash=0; }
+  update(dt){ this.swing=Math.max(0,this.swing-dt*4.2); this.flash*=Math.pow(.02,dt); }
+}
+
+/* ─── AI ─── */
+class Cpu{
+  constructor(a){ this.a=a; this.phase=rand(0,99); this.blunder=0; this.approach=false; this.cd=0; this.serveT=0; }
+  reset(){ this.blunder=0; this.approach=false; this.cd=0; this.serveT=0; }
+
+  /** Serve immediately using a REMOTE player's chosen shot. Used in online
+      play, where the far side is a person: they press, we serve. Geometry and
+      physics are the same as the AI's serve, only the choice is theirs. */
+  serveNow(ball, sw){
+    const p=clamp(sw && sw.power!==undefined ? sw.power : 0.7, 0, 1);
+    const fast = sw && sw.shot==="fast";
+    const aim = clamp(sw && sw.aim!==undefined ? sw.aim : 0, -1, 1);
+
+    this.a.x=clamp(this.a.x, -CFG.court.hw+0.4, CFG.court.hw-0.4);
+    this.a.z=CFG.court.len;
+    ball.x=this.a.x; ball.y=CFG.serve.contactY; ball.z=this.a.z-0.35;
+    ball.clearTrail();
+
+    // Target the service box, steered by their aim.
+    const landX=clamp(aim*CFG.court.hw*0.6, -CFG.court.hw+0.7, CFG.court.hw-0.7);
+    const bLo=CFG.serve.box.lo+0.4, bHi=CFG.serve.box.hi-0.4;
+    const landZ=lerp(bHi,bLo,p);            // harder serve lands deeper in the box
+    const speed=fast ? CFG.serve.fast.speed : CFG.serve.normal.speed;
+
+    const sol=solveSafeShot(ball.x,ball.y,ball.z,landX,landZ,speed,0.55);
+    if(!sol) return false;
+    ball.vx=sol.vx; ball.vy=sol.vy; ball.vz=sol.vz;
+
+    // Super Fast Serve, on the same terms the local player earns it.
+    const sfs = fast && p>=0.80;
+    if(sfs){
+      const k=1.18; ball.vx*=k; ball.vy*=k; ball.vz*=k; ball.super=1.0;
+      const rawZ=predictLandDepth(ball.x,ball.y,ball.z,ball.vy,ball.vz);
+      if(rawZ!==null && rawZ<CFG.serve.box.lo){
+        const tgtZ=CFG.serve.box.lo, dz0=ball.z;
+        const kk=Math.max(0.55,(dz0-tgtZ)/Math.max(dz0-rawZ,0.5));
+        ball.vx*=kk; ball.vz*=kk; ball.vy*=Math.max(0.85,kk);
+      }
+    }
+    ball.lastHitBy="cpu"; ball.bounces=0; ball.live=true; ball.isServe=true;
+    this.a.swing=1; this.a.flash=1;
+    if(sfs){ Snd.superFast(); FX.spark(ball.x,ball.y,ball.z,"#ffe95f",22,5); }
+    else { Snd.cpuHit(fast?0.9:0.5); FX.spark(ball.x,ball.y,ball.z,fast?"#ff5f7e":"#b160ff",fast?14:9,3.5); }
+    Match.registerHit();
+    return true;
+  }
+
+  serveTick(ball,dt){
+    const A=AI();
+    this.serveT+=dt;
+    // Walk to the serving position first: baseline centre, like the player.
+    // The CPU shouldn't fire from wherever it happened to be standing.
+    const serveX = 0;                              // centre of the baseline
+    const serveZ = CFG.court.len;                  // its own baseline
+    this.a.x += clamp(serveX-this.a.x, -A.speed*dt, A.speed*dt);
+    this.a.z += clamp(serveZ-this.a.z, -A.zSpeed*dt, A.zSpeed*dt);
+    if(this.serveT<A.serveDelay) return false;
+    // Snap exactly onto the mark so the contact point is always clean.
+    this.a.x=serveX; this.a.z=serveZ;
+
+    ball.x=this.a.x;
+    ball.y=CFG.serve.contactY;
+    ball.z=this.a.z-0.35;                          // just in front of the baseline
+    ball.clearTrail();
+
+    /* Serve variety by difficulty. Beginners mostly roll a plain serve and
+       occasionally a FAST one; the ladder adds FAST more often and, from
+       Advanced up, a Super Fast Serve when they commit. Frequencies are
+       probabilistic so the serve stays unpredictable rather than scripted. */
+    const lvl = CFG.aiLevel;
+    let fastP=0.15, superP=0.0;
+    if(lvl==="beginner"){      fastP=0.15; superP=0.0; }
+    else if(lvl==="intermediate"){ fastP=0.30; superP=0.0; }
+    else if(lvl==="advanced"){ fastP=0.45; superP=0.15; }
+    else if(lvl==="pro"){      fastP=0.55; superP=0.28; }
+    if(A.neverMiss){ fastP=0; superP=0; }
+    const roll=Math.random();
+    const doSuper = roll < superP;
+    const fast = doSuper || (roll < superP+fastP);
+
+    // Land it in the service box: inside the sidelines, short of mid-court.
+    // Aim precision scales with difficulty — better players place it tighter
+    // and more reliably. A miss should be rare and level-appropriate, not a
+    // geometry failure, so the target itself always sits safely inside the box.
+    const serveAcc = lvl==="beginner"?0.62 : lvl==="intermediate"?0.78
+                   : lvl==="advanced"?0.90 : 0.96;              // 0..1 tightness
+    const spread = (1-serveAcc);                                // wider = looser
+    const landX = clamp(rand(-1,1)*spread*CFG.court.hw*0.7,
+                        -CFG.court.hw+0.7, CFG.court.hw-0.7);
+    // Keep the target off the box edges so normal variance still lands in.
+    const bLo=CFG.serve.box.lo+0.4, bHi=CFG.serve.box.hi-0.4;
+    const landZ = clamp((bLo+bHi)/2 + rand(-1,1)*(bHi-bLo)/2*spread, bLo, bHi);
+    const speed = fast ? CFG.serve.fast.speed : CFG.serve.normal.speed;
+
+    /* A small, level-scaled chance the serve is mis-hit — placed a touch long
+       or wide so it just misses the box. Keeps serving human (beginners fault
+       more) rather than robotically perfect, while staying rare enough that
+       the serve is still an asset. Advanced/Pro almost never fault. */
+    const faultChance = lvl==="beginner"?0.12 : lvl==="intermediate"?0.06
+                      : lvl==="advanced"?0.02 : 0.01;
+    let faultX=0, faultZ=0;
+    if(!A.neverMiss && Math.random()<faultChance){
+      if(Math.random()<0.5) faultZ = -(CFG.serve.box.lo+1.2);   // long (past service line)
+      else faultX = (Math.random()<0.5?-1:1)*1.4;               // wide
+    }
+
+    const sol = solveSafeShot(ball.x,ball.y,ball.z,landX+faultX,landZ-faultZ,speed,0.55);
+    if(!sol){ this.serveT=0; return false; }
+
+    ball.vx=sol.vx; ball.vy=sol.vy; ball.vz=sol.vz;
+    /* Super Fast Serve: extra pace, then tamed so it still lands in the
+       service box. The CPU serves toward the player — small z — so its box is
+       the NEAR one (z ≈ box.lo … box.hi), and its serve travels with vz<0.
+       The old correction used the far-box geometry (len−box.lo) and so never
+       fired for the CPU, letting the 1.18× boost sail long past the service
+       line. This predicts the real landing and, if it overshoots the near box
+       (lands at too-small z / too deep into the player's court), scales the
+       velocity back so it drops inside. Direction and difficulty are kept. */
+    if(doSuper){
+      const k=1.18; ball.vx*=k; ball.vy*=k; ball.vz*=k; ball.super=1.0;
+      const boxNear = CFG.serve.box.lo;                       // shallow edge (small z)
+      const rawZ=predictLandDepth(ball.x,ball.y,ball.z,ball.vy,ball.vz);
+      // Overshoot for a serve toward small z means landing at z BELOW the box
+      // (too deep into the returner's court).
+      if(rawZ!==null && rawZ < boxNear){
+        // Aim a touch short of box centre: drag makes the scaled shot carry a
+        // little further than a linear estimate, so targeting the shallow half
+        // of the box lands it reliably inside rather than nicking the line.
+        const tgtZ = CFG.serve.box.lo;                       // aim the shallow edge
+        const dz0 = ball.z;                                  // ≈ len
+        const kk = Math.max(0.55, (dz0-tgtZ)/Math.max(dz0-rawZ,0.5));
+        ball.vx*=kk; ball.vz*=kk; ball.vy*=Math.max(0.85,kk);
+      }
+    }
+    ball.lastHitBy="cpu"; ball.bounces=0; ball.live=true; ball.isServe=true;
+
+    Match.noteShot(Analytics.logShot({
+      by:"cpu", type:doSuper?"super":(fast?"fast":"serve"),
+      speed:Math.hypot(ball.vx,ball.vz), dirX:landX/CFG.court.hw,
+      from:{x:ball.x,z:ball.z},
+      land:{x:landX,z:sol.landZ!==undefined?sol.landZ:landZ}
+    }));
+
+    this.a.swing=1; this.a.flash=1;
+    if(doSuper){ Snd.superFast(); FX.spark(ball.x,ball.y,ball.z,"#ffe95f",22,5); }
+    else { Snd.cpuHit(fast?0.9:0.5); FX.spark(ball.x,ball.y,ball.z,fast?"#ff5f7e":"#b160ff",fast?14:9,3.5); }
+    Match.registerHit();
+    this.serveT=0;
+    return true;
+  }
+
+  think(ball,dt){
+    const A=AI();
+    this.cd=Math.max(0,this.cd-dt);
+    this.phase+=A.errFreq*dt;
+    const incoming = ball.live && ball.vz>0 && ball.lastHitBy==="player";
+    if(incoming && !this.approach){
+      this.blunder = Math.random()<A.missChance ? rand(-A.aimError*2.6,A.aimError*2.6) : 0;
+      this.approach=true;
+      this.reactT=A.reaction;          // hesitate before committing to the ball
+    }
+    if(!incoming){ this.approach=false; this.reactT=0; this.letGo=false; }
+    if(this.reactT>0) this.reactT=Math.max(0,this.reactT-dt);
+    // During the reaction window the CPU holds position — it has not yet
+    // "read" the shot. This is the main thing separating a beginner (0.28s,
+    // often caught flat-footed) from a pro (0.07s, almost instant), without
+    // giving anyone superhuman speed.
+    const reacting = incoming && this.reactT>0;
+    const drift=Math.sin(this.phase)*A.aimError*.5;
+    const t=clamp((ball.mult-1)/(CFG.rally.cap-1),0,1);
+    const mul=A.speedMul||1;                 // Pro is 1.1×; everyone else 1.0
+    const sp=A.speed*mul*(1-A.fatigue*t);
+
+    // ── lateral
+    const targetX = (incoming && !reacting) ? this.predictX(ball)+drift+this.blunder
+                             : lerp(this.a.x,0,1-Math.pow(.25,dt))+drift*.3;
+    const d=clamp(targetX,-CFG.court.hw*1.2,CFG.court.hw*1.2)-this.a.x;
+    this.a.x+=clamp(d,-sp*dt,sp*dt);
+
+    /* ── depth ───────────────────────────────────────────
+       The CPU walks up to meet the bounce and retreats after.
+       Aggressive levels (forwardBias) hold a more forward
+       resting position, taking the net the way a serve-volleyer
+       would — this is a standing choice, not a speed cheat. ── */
+    let homeZ = A.homeZ;
+    if(A.forwardBias){ homeZ = lerp(A.homeZ, CFG.court.netZ+3.5, A.forwardBias*0.5); }
+    let targetZ = homeZ;
+    if(incoming && !reacting){
+      const land = this.predictLandZ(ball);
+      // Don't chase a ball that is clearly going out — if it will land past
+      // the baseline or outside the sidelines, let it go (it's the opponent's
+      // error, not something to run down). We still cover anything that could
+      // land in. A small margin keeps close calls honest.
+      const landInfo = this.predictLanding(ball);
+      /* Decide whether to chase using the SAME line judgment as scoring
+         (ballIn), so the CPU never runs down a ball that will be called out,
+         nor waves off one that will be in. A buffer beyond the lines absorbs
+         prediction error, so only an UNAMBIGUOUS out is abandoned.
+
+         FAIL-SAFE: if we have no confident prediction (landInfo null), we
+         always chase. Never let uncertainty stop the CPU from playing — a
+         wasted run is harmless, a missed return breaks the rally. */
+      const buf = 0.6;   // prediction-uncertainty buffer, in metres
+      const clearlyOut = !!landInfo && !(
+        Math.abs(landInfo.x) <= CFG.court.hw + CFG.ballR + buf &&
+        landInfo.z >= -(CFG.ballR+buf) &&
+        landInfo.z <= CFG.court.len + CFG.ballR + buf
+      );
+      if(land!==null && !clearlyOut){
+        targetZ = clamp(land+A.standBack, CFG.court.netZ+0.8, A.homeZ);
+      }else if(clearlyOut){
+        targetZ = homeZ;          // relax to home; don't run for an out ball
+        this.letGo = true;        // and don't strike it either
+      }
+    }
+    const dz=targetZ-this.a.z;
+    if(Math.abs(dz)>0.02){
+      this.a.z += clamp(dz, -A.zSpeed*mul*dt, A.zSpeed*mul*dt);
+    }
+
+    // ── strike
+    if(incoming && this.cd<=0 && !this.letGo){
+      const dzB=ball.z-this.a.z;
+      if(dzB>-A.reachBack && dzB<A.reachFwd && ball.y<2.8){
+        if(Math.abs(ball.x-this.a.x)<A.reach && Math.random()>A.timingJitter){
+          this.strike(ball); this.cd=CFG.swing.cooldown;
+        }
+      }
+    }
+  }
+
+  /** Where will the ball first bounce, as {x,z}? null if it never lands in a
+      way we can judge. Used to decide whether a ball is worth chasing.
+
+      MUST NOT bail out just because the ball is still on the far side of the
+      net. The earlier version aborted whenever z < netZ-3, which is true on
+      the very first frame after the player hits from their own baseline — so
+      it returned the ball's near-court position, the CPU read that as
+      "landing out", set letGo, and never swung. That was the cause of the CPU
+      failing to return. Now we only stop for a ball that has genuinely left
+      the play volume. */
+  predictLanding(ball){
+    let {x,y,z,vx,vy,vz}=ball;
+    const g=CFG.phys.g, dr=CFG.phys.airDrag, h=1/120;
+    let n=0;
+    while(n++<1200){
+      vy-=g*h; const d=Math.pow(dr,h*60); vx*=d; vz*=d;
+      x+=vx*h; y+=vy*h; z+=vz*h;
+      if(y<0.03 && vy<0) return {x,z};          // real first bounce
+      if(z > CFG.court.len+4) return {x,z};     // sailed long past our baseline
+      if(vz<=0 && z < CFG.court.netZ) return null;  // moving away; not ours to judge
+    }
+    return null;
+  }
+
+  /** Where will the ball first bounce on our side? null if it won't reach us.
+      MUST match the live physics — including air drag — or the CPU mis-reads
+      every deep ball. (The old version integrated WITHOUT drag, so a normal
+      deep rally shot was predicted to fly long and returned null; the CPU then
+      treated it as "going out", never moved to intercept, and could not
+      return. That was the cause of rallies collapsing.) */
+  predictLandZ(ball){
+    let {y,z,vy,vz}=ball;
+    const g=CFG.phys.g, dr=CFG.phys.airDrag, h=1/120;
+    let n=0;
+    while(n++<1200){
+      vy-=g*h; vz*=Math.pow(dr,h*60);       // apply drag, as the real ball does
+      y+=vy*h; z+=vz*h;
+      if(y<0.03 && vy<0) return z>CFG.court.netZ ? z : null;
+      // Only bail if the ball flies well past our baseline (clearly long) or
+      // is heading the wrong way. Do NOT bail just because it's still on the
+      // player's side approaching the net — that was killing every prediction.
+      if(z>CFG.court.len+4) return null;
+      if(vz<=0 && z<CFG.court.netZ) return null;   // moving away, won't reach us
+    }
+    return null;
+  }
+  predictX(ball){
+    let {x,y,z,vx,vy,vz}=ball;
+    const g=CFG.phys.g, dr=CFG.phys.airDrag, tz=this.a.z, h=1/120;
+    let n=0;
+    while(z<tz && n++<900){
+      vy-=g*h; const d=Math.pow(dr,h*60); vx*=d; vz*=d;
+      x+=vx*h; y+=vy*h; z+=vz*h;
+      if(y<0.03&&vy<0){ y=0.03; vy=-vy*CFG.phys.restitution; vx*=CFG.phys.friction; vz*=CFG.phys.friction; }
+    }
+    return x;
+  }
+  strike(ball, remote){
+    const A=AI();
+    /* `remote` is set in online play: the guest chose this shot, so we use
+       their type/power/aim instead of rolling the AI's. Everything after this
+       point — reach, physics, corrections, scoring — is identical, so a human
+       opponent plays by exactly the same rules the AI does. */
+    const power = remote ? clamp(remote.power,0,1) : rand(A.power.lo,A.power.hi);
+    // CPU Super Fast: a volley (no bounce) off the player's lob, hit hard.
+    // Mirrors the player's earn condition exactly — item 6 requires parity.
+    const cpuSFS = remote
+      ? (remote.shot==="fast" && ball.bounces===0 && ball.lastHitBy==="player" && power>=0.55)
+      : (ball.bounces===0 && ball.lastHitBy==="player" &&
+         ball.vy>0 && power>=0.70 && Math.random()<0.35);
+    const useLob = remote ? (remote.shot==="lob")
+                          : (!cpuSFS && Math.random()<A.lobChance);
+    // Higher levels convert more balls into aggressive fast shots (the
+    // "smash" of the spec). Low levels rarely do, so their pace stays gentle.
+    const useSmash = remote ? (remote.shot==="fast")
+                            : (!cpuSFS && !useLob && Math.random()<(A.smashChance||0)*0.5);
+    const type = cpuSFS ? "fast" : (useLob ? "lob" : (useSmash ? "fast" : "normal"));
+    const S = CFG.shot[type];
+
+    // Aim within the player's half, biased by the level's spread.
+    /* Aim. For a remote player the swipe direction picks the target, mirroring
+       how the local player's aim works; for the AI it's the level's spread. */
+    const landX = remote
+      ? clamp(clamp(remote.aim,-1,1)*CFG.court.hw*0.85,
+              -CFG.court.hw+0.4, CFG.court.hw-0.4)
+      : clamp(rand(-1,1)*A.aimSpread*CFG.court.hw*0.62,
+              -CFG.court.hw+0.5, CFG.court.hw-0.5);
+    const landZ = remote ? lerp(4.0, 2.0, power) : lerp(3.2, 7.4, Math.random());
+    const y0 = Math.max(ball.y,1.1);
+    // CPU uses the same launch table as the player, giving it comparable pace
+    // at comparable charge. This is still a solveSafeShot path — the CPU
+    // needs a landing target on our side, not a straight launch — but the
+    // SPEED it hits with follows the same charge-to-speed curve.
+    const t=0.42+0.58*(0.55*power*power+0.45*power);   // matches player curve
+    const speed=lerp(S.launch.speedLo,S.launch.speedHi,t);
+    const margin=type==="lob"?2.20:0.85;
+
+    const sol = A.neverMiss
+      ? solveSafeShot(ball.x,y0,ball.z,landX,landZ,speed,0.55)
+      : solveSafeShot(ball.x,y0,ball.z,landX,landZ,speed,margin);
+    if(!sol) return;
+
+    ball.vx=sol.vx; ball.vy=sol.vy; ball.vz=sol.vz;
+    if(cpuSFS){
+      // Scale up 18% just like the player SFS — CPU parity.
+      const k=1.18; ball.vx*=k; ball.vy*=k; ball.vz*=k;
+      ball.super=1.0;
+      /* High-point FAST correction, mirrored for the CPU (it hits toward
+         small z, the player's baseline at z=0). Same rule as the player: if
+         struck high and the boosted trajectory would clearly overshoot the
+         far baseline, trim pace to bring it back in. Keeps the CPU honest and
+         at parity — it can't spray unreturnable long bombs either. */
+      const cHigh = clamp((ball.y-1.7)/1.05,0,1);
+      if(cHigh>0 && ball.vz<0){
+        // predict landing z (travelling toward 0)
+        const rawZ=predictLandDepth(ball.x,ball.y,ball.z,ball.vy,ball.vz);
+        if(rawZ!==null && rawZ < -1.0){            // past the player baseline
+          const tgt=lerp(rawZ, 1.2, cHigh);        // pull toward just inside
+          const dz0=ball.z;                        // start z (large)
+          const kk=Math.max(0.45,(dz0-tgt)/Math.max(dz0-rawZ,0.5));
+          ball.vx*=kk; ball.vz*=kk; ball.vy*=Math.max(0.82,kk);
+        }
+      }
+    }
+    ball.bounces=0; ball.lastHitBy="cpu"; ball.live=true;
+
+    Match.noteShot(Analytics.logShot({
+      by:"cpu", type:cpuSFS?"super":type,
+      speed:Math.hypot(ball.vx,ball.vz), dirX:landX/CFG.court.hw,
+      from:{x:ball.x,z:ball.z},
+      land:{x:landX,z:sol.landZ!==undefined?sol.landZ:landZ}
+    }));
+
+    Match.registerHit();
+    this.a.swing=1; this.a.flash=1;
+    if(cpuSFS){ Snd.superFast(); FX.spark(ball.x,ball.y,ball.z,"#ffe95f",26,6); }
+    else{ Snd.cpuHit(power); FX.spark(ball.x,ball.y,ball.z,"#b160ff",10,3); }
+  }
+}
+
+/* ─── FX ─── */
+const FX=(()=>{
+  const parts=[];
+  let flash=0,flashRGB="95,245,232",zoom=0,shake=0,banner=null;
+  function spark(x,y,z,color,n=10,power=3){
+    for(let i=0;i<n&&parts.length<CFG.fx.maxParticles;i++){
+      const a=rand(0,Math.PI*2),s=rand(.4,power*.5);
+      parts.push({x,y,z,vx:Math.cos(a)*s,vy:Math.abs(Math.sin(rand(0,Math.PI)))*s,vz:Math.sin(a)*s,
+                  life:1,color,size:rand(.02,.05)});
+    }
+  }
+  function step(dt){
+    for(let i=parts.length-1;i>=0;i--){
+      const p=parts[i];
+      p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.vy-=6*dt; p.life-=dt*2.1;
+      if(p.life<=0)parts.splice(i,1);
+    }
+    flash=Math.max(0,flash-dt*2.6);
+    zoom*=Math.pow(.006,dt); if(zoom<.0004)zoom=0;
+    shake*=Math.pow(.004,dt); if(shake<.04)shake=0;
+    if(banner){ banner.t-=dt; if(banner.t<=0)banner=null; }
+  }
+  function draw(g){
+    for(const p of parts){
+      const pr=Cam.project(p.x,p.y,p.z);
+      if(!pr.visible)continue;
+      g.globalAlpha=p.life*.9; g.fillStyle=p.color;
+      g.beginPath(); g.arc(pr.sx,pr.sy,Math.max(.6,p.size*pr.scale*p.life),0,Math.PI*2); g.fill();
+    }
+    g.globalAlpha=1;
+  }
+  return{
+    spark,step,draw,
+    point(win){ flash=.26; zoom=.024; shake=5; flashRGB=win?"95,245,232":"177,96,255"; },
+    say(text,color){ banner={text,color,t:1.05,max:1.05}; },
+    get flash(){return flash;}, get flashRGB(){return flashRGB;},
+    get zoom(){return zoom;}, get shake(){return shake;}, get banner(){return banner;},
+    clear(){ parts.length=0; flash=zoom=shake=0; banner=null; }
+  };
+})();
+
+/* ─── UI refs ─── */
+const UI={
+  btnPause:document.getElementById("btnPause"),
+  btnSound:document.getElementById("btnSound"),
+  scrTitle:document.getElementById("scrTitle"),
+  scrMatch:document.getElementById("scrMatch"),
+  scrAnalytics:document.getElementById("scrAnalytics"),
+  scrPause:document.getElementById("scrPause"),
+  scrEnd:document.getElementById("scrEnd"),
+  verdict:document.getElementById("verdict"),
+  finalScore:document.getElementById("finalScore"),
+  stLong:document.getElementById("stLong"),
+  stWin:document.getElementById("stWin"),
+  stVol:document.getElementById("stVol")
+};
+
+/* ═══════════════════════════════════════════════════════════
+   NET — online play state synchronisation.
+
+   Model: HOST-AUTHORITATIVE.
+     • The host runs the real simulation. Its "CPU" opponent is driven by the
+       guest's transmitted inputs instead of the AI.
+     • The guest runs no ball physics. It sends its intent (where it wants to
+       stand, and when it swings) and renders the snapshots the host sends.
+     • The guest still moves its own avatar locally so the controls feel
+       instant; the host's snapshot gently corrects it if they drift apart.
+
+   Why not simulate on both sides? Because two browsers never agree on
+   floating-point results or frame timing, so independent simulations diverge
+   within seconds — the ball ends up in different places and the score stops
+   matching. One authority removes that class of bug entirely.
+
+   Wire format (small JSON objects, ~20/sec):
+     host → guest : {t:"s", ...snapshot}   ball, both players, score, phase
+     guest → host : {t:"i", x, z, sw}      intent: position + swing request
+     either       : {t:"ping"|"pong"}      latency probe
+   ═══════════════════════════════════════════════════════════ */
+const Net=(()=>{
+  let active=false, isHost=false, send=null;
+  let sendAcc=0;
+  const SEND_HZ=20, SEND_DT=1/SEND_HZ;
+
+  // Guest-side: latest authoritative snapshot from the host.
+  let snap=null;
+  // Host-side: latest intent from the guest.
+  let remote={x:0, z:0, swing:false, swingSeq:0};
+  let lastSwingSeq=0;
+  // Guest-side: our own swing requests get a sequence so the host can tell
+  // a fresh press from a repeat of the same one.
+  let mySwingSeq=0, pendingSwing=null;
+
+  function begin(host, sendFn){
+    active=true; isHost=host; send=sendFn;
+    snap=null; sendAcc=0;
+    remote={x:0,z:CFG.court.len-CFG.player.baseZ,swing:false,swingSeq:0};
+    lastSwingSeq=0; mySwingSeq=0; pendingSwing=null;
+  }
+  function end(){ active=false; send=null; snap=null; }
+
+  /* ── HOST: turn the guest's intent into opponent movement ── */
+  function driveRemoteOpponent(cpuA, ball, dt){
+    // Move the remote avatar toward the position the guest asked for, at the
+    // same speed a local player would manage — no teleporting, so a laggy or
+    // hostile client cannot gain reach it hasn't earned.
+    const sp=CFG.player.trackTime>0 ? (CFG.court.hw*2)/CFG.player.trackTime : 8;
+    const dx=clamp(remote.x-cpuA.x, -sp*dt, sp*dt);
+    cpuA.x+=dx;
+    const dz=clamp(remote.z-cpuA.z, -CFG.player.zSpeed*dt, CFG.player.zSpeed*dt);
+    cpuA.z+=dz;
+  }
+
+  /** Host: has the guest asked to swing since we last checked? */
+  function takeRemoteSwing(){
+    if(remote.swingSeq!==lastSwingSeq){
+      lastSwingSeq=remote.swingSeq;
+      return remote.swing || null;
+    }
+    return null;
+  }
+
+  /* ── GUEST: queue our swing to send to the host ── */
+  function requestSwing(rel){
+    if(!active || isHost) return;
+    mySwingSeq++;
+    pendingSwing={shot:rel.shot, power:rel.power, aim:rel.aim, seq:mySwingSeq};
+  }
+
+  /** Guest: the newest authoritative snapshot, or null. */
+  function snapshot(){ return snap; }
+
+  function onMessage(msg, ent){
+    if(!active || !msg || typeof msg!=="object") return;
+    if(msg.t==="s" && !isHost){ snap=msg; applySnapshot(msg, ent); return; }
+    if(msg.t==="i" && isHost){
+      remote.x=msg.x; remote.z=msg.z;
+      if(msg.sw && msg.sw.seq!==remote.swingSeq){
+        remote.swing=msg.sw; remote.swingSeq=msg.sw.seq;
+      }
+      return;
+    }
+  }
+
+  /** Guest: adopt the host's authoritative world. */
+  function applySnapshot(s, ent){
+    if(!ent) return;
+    const {ball, player, cpuA}=ent;
+    if(s.b){
+      ball.x=s.b[0]; ball.y=s.b[1]; ball.z=s.b[2];
+      ball.vx=s.b[3]; ball.vy=s.b[4]; ball.vz=s.b[5];
+      ball.live=!!s.b[6]; ball.bounces=s.b[7]|0;
+    }
+    // The host's "player" is our opponent, and vice versa — mirror the roles.
+    if(s.p){ cpuA.x=s.p[0]; cpuA.z=s.p[1]; }
+    if(s.o){
+      // Our own avatar: nudge toward the host's view rather than snapping, so
+      // local input stays smooth but we can't drift out of agreement.
+      player.x=lerp(player.x, s.o[0], 0.25);
+      player.z=lerp(player.z, s.o[1], 0.25);
+    }
+    // Score and phase are the host's to declare — otherwise the two screens
+    // can disagree about who won a point, which is worse than any jitter.
+    if(s.sc && Match.applyNetScore) Match.applyNetScore(s.sc[1], s.sc[0]);
+    if(s.ph && Match.applyNetPhase) Match.applyNetPhase(s.ph);
+  }
+
+  /* ── per-frame networking ── */
+  function tick(dt, ent){
+    if(!active || !send) return;
+    sendAcc+=dt;
+    if(sendAcc<SEND_DT) return;
+    sendAcc=0;
+    const e=ent||{};
+    if(isHost){
+      const b=e.ball, p=e.player, o=e.cpuA;
+      if(!b||!p||!o) return;
+      send({t:"s",
+        b:[r2(b.x),r2(b.y),r2(b.z),r2(b.vx),r2(b.vy),r2(b.vz),b.live?1:0,b.bounces|0],
+        p:[r2(p.x),r2(p.z)],
+        o:[r2(o.x),r2(o.z)],
+        sc:e.score ? [e.score.p, e.score.c] : null,
+        ph:e.phase||null
+      });
+    }else{
+      const p=e.player;
+      if(!p) return;
+      const msg={t:"i", x:r2(p.x), z:r2(p.z), sw:null};
+      if(pendingSwing){ msg.sw=pendingSwing; pendingSwing=null; }
+      send(msg);
+    }
+  }
+  const r2=v=>Math.round(v*100)/100;   // 2dp is plenty, and keeps packets small
+
+  return {
+    get active(){return active;}, get isHost(){return isHost;},
+    begin, end, tick, onMessage, driveRemoteOpponent,
+    takeRemoteSwing, requestSwing, snapshot
+  };
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   MATCH
+   Point phases:  serve_ready → serve_toss → rally → freeze
+   ═══════════════════════════════════════════════════════════ */
+const Match=(()=>{
+  const player=new Actor(CFG.player.baseZ);
+  const cpuA=new Actor(CFG.court.len-CFG.player.baseZ);
+  const ball=new Ball();
+  const brain=new Cpu(cpuA);
+
+  let state="title";
+  let phase="serve_ready";
+  let score={p:0,c:0};
+  let rally=0, cooldown=0, freeze=0, server="player";
+  let tossT=0, serveHoldT=0, serveIdle=0;
+  let pending=null, pendingT=0, pendingArmed=0;   // armed swing awaiting the ball
+  let lastShot=null;              // analytics handle for the shot in flight
+  let finishTimer=null;           // pending result-screen timer
+  let matchStamp=0;               // invalidates timers from a previous match
+  let stats={longest:0,winners:0,volleys:0};
+  let scoreAnim={p:0,c:0};
+  const pad=n=>String(n).padStart(2,"0");
+
+  function setScreen(n){
+    UI.scrTitle.classList.toggle("show",n==="title");
+    UI.scrMatch.classList.toggle("show",n==="match");
+    UI.scrAnalytics.classList.toggle("show",n==="analytics");
+    UI.scrPause.classList.toggle("show",n==="paused");
+    UI.scrEnd.classList.toggle("show",n==="over");
+  }
+  /* The player holds the baseline. Volleys still occur naturally whenever a
+     no-bounce ball arrives in reach — see doReturn() — but there is no
+     forward/back movement to manage, by button or automatically. */
+
+  function newMatch(){
+    // Kill any result timer still in flight from the previous match.
+    if(finishTimer){ clearTimeout(finishTimer); finishTimer=null; }
+    matchStamp++;
+    score={p:0,c:0}; rally=0; cooldown=0; freeze=0;
+    stats={longest:0,winners:0,volleys:0}; scoreAnim={p:0,c:0};
+    player.reset(CFG.player.baseZ);
+    cpuA.reset(CFG.court.len-CFG.player.baseZ);
+    brain.reset(); Input.reset(); FX.clear(); Cam.reset();
+    /* Analytics deliberately NOT reset here. The analysis screen reports the
+       aggregate of every match played this session, not just the last one, so
+       the sample is large enough for the numbers to mean something. The rally
+       log is capped (CFG.analytics.maxRallies) so it can't grow unbounded. */
+    server=Math.random()<.5?"player":"cpu";
+    prepServe();
+  }
+
+  function prepServe(){
+    ball.hardReset();
+    ball.mult=1;
+    phase="serve_ready";
+    tossT=0; serveHoldT=0; serveIdle=0;
+    pending=null; pendingT=0; pendingArmed=0; lastShot=null;
+    brain.serveT=0;
+    Analytics.beginRally(server);
+    // the server returns to their baseline for the serve
+  }
+
+  function start(diff){
+    if(diff && CFG.aiLevels[diff]) CFG.aiLevel=diff;
+    Snd.init(); Snd.resume(); newMatch(); state="playing"; setScreen(null);
+    UI.btnPause.textContent="PAUSE";
+  }
+  /** Begin an online match. Both sides run this; the host additionally owns
+      the simulation (see Net). The AI level only sets the remote player's
+      reach envelope, which is identical on both machines. */
+  function startOnline(isHost){
+    CFG.aiLevel="advanced";               // shared reach/timing envelope
+    Snd.init(); Snd.resume(); newMatch();
+    // The host always serves first, so both sides agree who starts.
+    server = isHost ? "player" : "cpu";
+    prepServe();
+    state="playing"; setScreen(null);
+    UI.btnPause.textContent="PAUSE";
+  }
+  function toMatchmaking(){ setScreen("match"); }
+  function toAnalytics(){ state="title"; setScreen("analytics"); }
+  function togglePause(){
+    if(state==="playing"){ state="paused"; Input.cancel(); setScreen("paused"); UI.btnPause.textContent="RESUME"; }
+    else if(state==="paused"){ state="playing"; setScreen(null); UI.btnPause.textContent="PAUSE"; Snd.resume(); }
+  }
+  function toTitle(){ state="title"; Input.cancel(); newMatch(); setScreen("title"); UI.btnPause.textContent="PAUSE"; }
+  function restart(){ Snd.init(); Snd.resume(); newMatch(); state="playing"; setScreen(null); UI.btnPause.textContent="PAUSE"; }
+  function isOver(){
+    const {target,margin}=CFG.match;
+    const hi=Math.max(score.p,score.c),lo=Math.min(score.p,score.c);
+    return hi>=target&&hi-lo>=margin;
+  }
+  function finish(){
+    state="over"; Input.cancel();
+    const won=score.p>score.c;
+    UI.verdict.textContent=won?"VICTORY":"DEFEAT";
+    UI.verdict.className="verdict "+(won?"win":"lose");
+    UI.finalScore.textContent=`${pad(score.p)} — ${pad(score.c)}`;
+    UI.stLong.textContent=stats.longest;
+    UI.stWin.textContent=stats.winners;
+    UI.stVol.textContent=stats.volleys;
+    setScreen("over");
+    won?Snd.win():Snd.lose();
+  }
+  function noteShot(s){ lastShot=s; }
+
+  function point(who,reason){
+    if(state!=="playing"||freeze>0)return;
+    stats.longest=Math.max(stats.longest,rally);
+    // Resolve the shot that ended the point, then close the rally record.
+    const resultMap={ net:"net", out:"out_long", wide:"out_wide",
+                      ace:"ace", winner:"winner", past:"in", rally:"in" };
+    Analytics.resolveLast(resultMap[reason]||"in", {x:ball.x,z:ball.z});
+    Analytics.endRally(who,reason);
+    if(who==="player"){ score.p++; scoreAnim.p=1; Snd.pointWin(); if(reason==="winner"||reason==="ace")stats.winners++; }
+    else{ score.c++; scoreAnim.c=1; Snd.pointLose(); }
+    FX.point(who==="player");
+    const label = reason==="net"?"NET" : reason==="out"?"OUT" : reason==="ace"?"ACE"
+                : reason==="footfault"?"TOO SLOW" : who==="player"?"POINT":"LOST";
+    FX.say(label, who==="player"?"#5ff5e8":"#b160ff");
+    rally=0; ball.live=false; Input.cancel();
+    pending=null; pendingT=0; pendingArmed=0;
+    server=who;                 // winner serves next
+    freeze=0.6; brain.reset();
+    // Delay the result screen so the final point can land visually. Guard it:
+    // quitting to the title inside that window would otherwise pop the result
+    // screen over the title, and a stale timer could fire into a new match.
+    if(isOver()){
+      const stamp=++matchStamp;
+      finishTimer=setTimeout(()=>{
+        finishTimer=null;
+        if(state==="playing" && stamp===matchStamp) finish();
+      },750);
+    }
+  }
+  function registerHit(){
+    rally++;
+    // The practice level solves an exact trajectory each time, so ramping the
+    // ball speed would fight the solver and eventually break the "always in"
+    // guarantee on very long rallies. Keep the pace flat while practising.
+    ball.mult = AI().neverMiss ? 1
+              : Math.min(1+Math.floor(rally/CFG.rally.every)*CFG.rally.step,CFG.rally.cap);
+  }
+
+  /* ── SERVE ──────────────────────────────────────────────
+     Press → toss. Release while the ball is in the strike
+     band → contact. Swipe up hard for a flat, fast serve.
+     ───────────────────────────────────────────────────── */
+  function serveTossUpdate(dt){
+    tossT+=dt;
+    const g=CFG.phys.g;
+    const v0=Math.sqrt(2*g*CFG.serve.apex);
+    ball.x=player.x; ball.z=player.z+0.35;
+    ball.y=1.05+v0*tossT-0.5*g*tossT*tossT;
+    // Only reset once the ball has peaked and fallen back past the hand.
+    // (Testing the height alone would misfire on the way up, since the
+    //  toss starts at 1.05 — above the 0.9 threshold it's rising through.)
+    const falling = v0-g*tossT < 0;
+    if(falling && ball.y<0.9){ // toss dropped — reset, no penalty
+      phase="serve_ready"; tossT=0; ball.y=1.05; serveHoldT=0;
+    }
+  }
+  function hitServe(rel){
+    const S=CFG.serve;
+    const inBand = ball.y>=S.window.lo && ball.y<=S.window.hi;
+    player.swing=1;
+    if(!inBand){ Snd.whiff(); phase="serve_ready"; tossT=0; serveHoldT=0; return; }
+
+    // A committed forward swipe = the fast serve; anything else = normal.
+    const fast = rel.shot==="fast" && rel.power>0.45;
+    const q = 1 - Math.abs(ball.y-(S.window.lo+S.window.hi)/2)/((S.window.hi-S.window.lo)/2);
+    const p = clamp(rel.power,0,1);
+    const R = S.charge;
+
+    /* ── Serve is pure charge ─────────────────────────────
+       Rather than solving an arc that always lands in, the serve
+       fires a real launch whose speed and angle come straight
+       from the charge. Weak charge = slow and lofted, so gravity
+       drops it into the net; a solid charge clears and lands in
+       the box; a max charge is fastest and flattest but can sail
+       long. The physics produces net faults and long balls on
+       its own — nothing is scripted, so it always looks fair.
+       A good toss (q≈1) adds a touch of pace. */
+    // A little launch variance so the risk is probabilistic rather than a
+    // hard cliff: near the edges of "clears" and "long", the same charge can
+    // fall either side. This is what makes a max serve a genuine gamble.
+    const jit = (Math.random()*2-1);
+    const speed = lerp(R.speedLo, R.speedHi, p)*(0.97+q*0.03) + jit*0.5 + (fast?R.fastBonus:0);
+    const deg   = lerp(R.degLo, R.degHi, p) + jit*0.4;
+    const ang   = deg*Math.PI/180;
+    const aimAng = (rel.aim||0) * S.aimFan*Math.PI/180;
+
+    const vz = speed*Math.cos(ang)*Math.cos(aimAng);
+    const vx = speed*Math.cos(ang)*Math.sin(aimAng);
+    const vy = speed*Math.sin(ang);
+
+    ball.vx=vx; ball.vy=vy; ball.vz=vz;
+    // Super Fast Serve: a committed fast serve, fully charged. This is one of
+    // the two ways to earn a Super Fast Shot — reward for playing risky.
+    const sfsServe = fast && p>=0.80;
+    if(sfsServe){
+      const k=1.18; ball.vx*=k; ball.vy*=k; ball.vz*=k;
+      ball.super=1.0;
+      /* High-point FAST correction for the serve. The serve is a FAST shot
+         struck from a high toss, and the 1.18× SFS boost makes it sail long.
+         We tame it the same way as rally FAST shots — dropping the launch a
+         touch and trimming forward pace — but the serve's target is the
+         SERVICE BOX, not the baseline, so we predict the landing and, only if
+         it would overrun the box, scale the velocity to bring it back inside.
+         Direction and charge are untouched. */
+      const svHigh = clamp((ball.y-1.7)/1.05,0,1);
+      const boxFar = CFG.court.len - CFG.serve.box.lo;     // deep edge of the box
+      const rawZ = predictLandDepth(ball.x,ball.y,ball.z,ball.vy,ball.vz);
+      if(svHigh>0 && rawZ!==null && rawZ > boxFar){
+        const tgt = CFG.court.len - (CFG.serve.box.lo+CFG.serve.box.hi)/2; // box centre
+        const aimZ = lerp(rawZ, tgt, svHigh);
+        const kk = Math.max(0.5, (aimZ-ball.z)/Math.max(rawZ-ball.z,0.5));
+        ball.vx*=kk; ball.vz*=kk; ball.vy*=Math.max(0.82, kk); // keep some arc
+      }
+    }
+    ball.live=true; ball.bounces=0; ball.lastHitBy="player"; ball.isServe=true;
+    phase="rally";
+
+    const landZ = CFG.court.len - (S.box.lo+S.box.hi)/2;   // nominal, for analytics
+
+    noteShot(Analytics.logShot({
+      by:"player", type:"serve",
+      speed:Math.hypot(vx,vz), dirX:rel.aim||0,
+      from:{x:ball.x,z:ball.z},
+      land:{x:ball.x+vx*0.5,z:landZ}
+    }));
+
+    registerHit();
+    player.flash=1;
+    if(sfsServe){
+      Snd.superFast(); FX.spark(ball.x,ball.y,ball.z,"#ffe95f",26,6);
+    }else{
+      Snd.hit(rel.power,fast);
+      FX.spark(ball.x,ball.y,ball.z,fast?"#ff5f7e":"#5ff5e8",fast?16:10,4);
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════
+     CONTACT RESOLUTION — the judgement order the spec asks for:
+       1. has the ball crossed the net into our half?
+       2. is it inside the player's lane?
+       3. did the player input?
+       4. which shot?
+       5. return.
+
+     Note what is NOT here: any test of whether the player is
+     moving. The z transition is animation, not a lock. Advancing,
+     stationary, or retreating, the same conditions apply — the
+     ball is judged against the player's LIVE z, wherever that
+     happens to be at this instant.
+     ══════════════════════════════════════════════════════ */
+
+  /** 1. Only returnable once it is on our side of the net. */
+  function ballIsOurSide(){
+    return ball.live && ball.z < CFG.court.netZ && ball.vz < 0;
+  }
+  /** 2. Inside the return area — one ellipse, stretched forward and clipped
+         behind. This replaces the old lane and depth tests: the shape encodes
+         both. Keyed to where the player ACTUALLY is, so a ball you have not
+         moved to is a ball you cannot hit. */
+  function ballInArea(){
+    return inArea(ball.x, ball.z, player.x, player.z);
+  }
+  function canReturn(){
+    // A serve cannot be taken out of the air — it must bounce first. This is
+    // what gives the serve its edge: the returner is pinned back for one
+    // bounce instead of stepping in to volley it away. Once it bounces,
+    // isServe clears and it plays as a normal ball.
+    if(ball.isServe && ball.bounces===0) return false;
+    return ballIsOurSide() && ballInArea() && ball.y < 3.2 && ball.z > -5.4;
+  }
+
+  /** Where the swipe actually points. No correction — the fan maps the
+      swipe's lateral component onto a real angle and the ball goes there,
+      including off the court. Precision is the player's job. */
+  function doReturn(rel){
+    const type = rel.shot;               // "normal" | "fast" | "lob"
+    const S = CFG.shot[type];
+    const p = clamp(rel.power,0,1);
+    const noBounce = ball.bounces===0;
+    const isVolley = noBounce;
+
+    /* ── Direct-launch shot ──────────────────────────────
+       No solver, no re-aiming: charge picks the launch SPEED
+       and ANGLE from a fixed physics table, and the swipe picks
+       the LATERAL angle. What you draw is what flies. Weak
+       charge = slow and lofted, so gravity drops it into the
+       net; ~50% just clears; 70% mid-court; 100% hits the far
+       baseline. Charge → depth uses a quadratic curve so the
+       last stretch of the meter earns disproportionate reach.
+       ─────────────────────────────────────────────────── */
+    /* Charge → reach curve. Raised low-end floor (0.42) and a gentler shape
+       so light taps still carry a proper rally distance — the old pure
+       quadratic made 10-30% charge fall painfully short. 100% is unchanged
+       (the blend still resolves to 1.0 at full charge), so max-power reach is
+       exactly as before; only the bottom and middle of the meter lift. */
+    const lo=0.42, wq=0.55;
+    const t = lo + (1-lo)*(wq*p*p + (1-wq)*p);
+    let speed = lerp(S.launch.speedLo, S.launch.speedHi, t);
+    let deg   = lerp(S.launch.degLo,   S.launch.degHi,   t);
+
+    /* ── VOLLEY (reset spec) ──────────────────────────────
+       A volley is no longer a put-away — it's a rally tool. Struck from up
+       near the net, the baseline launch table hugely overshoots, so we
+       rebuild the volley from scratch here:
+         • speed ≈ 0.9× the equivalent normal ground stroke;
+         • launch angle by type — FAST/SUPER slightly DOWN, FLAT straight,
+           LOB slightly UP — so each keeps its character;
+         • the trajectory is then scaled to land near the baseline (the
+           correction below), so a volley reliably clears the net, carries
+           deep, and keeps the rally going instead of dumping short or flying
+           out.
+       Applied identically to player and CPU. */
+    if(isVolley){
+      // Base the volley pace on the NORMAL stroke speed for this charge, at
+      // 0.9×, regardless of the chosen type — so all volleys share a tempo.
+      const normSpeed = lerp(CFG.shot.normal.launch.speedLo,
+                             CFG.shot.normal.launch.speedHi, t);
+      speed = normSpeed * 0.9;
+      // Launch angle by type: down for fast/super, flat for FLAT, up for lob.
+      if(type==="fast")      deg = 6;     // slightly downward, punchy
+      else if(type==="lob")  deg = 20;    // slightly upward, floats deep
+      else                   deg = 12;    // FLAT — straight, neutral drive
+    }
+
+    /* ── High-point FAST correction ──────────────────────
+       Any FAST-family shot struck from a high point (serve, a
+       stroke taken high, a volley, or a Super Fast Shot) launches
+       on a baseline-calibrated trajectory that tends to overshoot
+       — the higher the contact, the more it sails long. That made
+       thumping a big FAST shot feel like a gamble.
+
+       This nudges ONLY such shots back into the court:
+         • FAST-family shots only (normal strokes, flat, lob are
+           never touched);
+         • gated to a high contact point (≈ shoulder and up), so
+           low FAST strokes off the bounce are untouched;
+         • engages only when the raw trajectory would clearly land
+           past the baseline;
+         • blends from gentle at shoulder height to full at smash
+           height;
+         • scales SPEED to a charge-picked depth and drops the
+           launch angle slightly (reads as topspin). It never
+           touches the lateral aim or the charge, so the direction
+           you swiped and the pace you charged are preserved.
+       An extreme-angle or awkward-height swing can still fly out,
+       so technique still matters. Applied identically to the CPU
+       (see Cpu.strike) — this is not a player-only rule. ── */
+    // Super Fast Shot: volley-fast on a lob, or a big charged fast shot from
+    // a serve/rally strike. Bonus is +18% speed and a flatter angle.
+    /* Super Fast Shot detection. A no-bounce FAST return of the opponent's
+       ball earns a Super Fast Shot. The old test also demanded p≥0.70, which
+       is why a lob smashed out of the air often failed to register as super
+       when the player didn't happen to charge past 70%. The situation — you
+       took their ball on the full, high, with FAST — is what earns it, not a
+       precise charge level. So: any FAST volley of the opponent's ball
+       counts, and a genuinely HIGH contact (a lob taken overhead) always
+       counts. Serve SFS is handled separately in hitServe(). */
+    let sfs = false;
+    if(type==="fast" && isVolley && ball.lastHitBy==="cpu"){
+      if(ball.y >= 1.9 || p >= 0.55) sfs = true;   // high overhead OR a committed swing
+    }
+    // (Serve SFS is handled in hitServe.)
+    if(sfs){ speed *= 1.18; deg = Math.max(1.0, deg-1.4); }
+
+    /* Corrections, applied AFTER any SFS boost so they tame the final pace.
+       - A VOLLEY (any type) is scaled to the rally-continuing depth band near
+         the baseline (see volleyCorrection) — reliable, deep, in.
+       - A non-volley FAST stroke taken high still gets the high-point FAST
+         correction (a smash off the bounce, etc.). */
+    if(isVolley){
+      const corr = volleyCorrection(ball.x,ball.y,ball.z,speed,deg,p);
+      speed = corr.speed; deg = corr.deg;
+    }else if(type==="fast"){
+      const corr = highFastCorrection(ball.x,ball.y,ball.z,speed,deg,p);
+      speed = corr.speed; deg = corr.deg;
+    }
+
+    const aimAng = clamp(rel.aim||0, -1, 1) * CFG.aimFanDeg * Math.PI/180;
+    const ang    = deg*Math.PI/180;
+
+    // horizontal component split by aim; vertical from launch angle
+    const horiz = speed*Math.cos(ang);
+    const vy    = speed*Math.sin(ang);
+    const vz    = horiz*Math.cos(aimAng);
+    const vx    = horiz*Math.sin(aimAng);
+
+    ball.vx=vx; ball.vy=vy; ball.vz=vz;
+    ball.bounces=0; ball.lastHitBy="player"; ball.live=true;
+
+    // A smash is a fast shot taken high overhead — tag it so analytics can
+    // count it distinctly from a regular fast drive or a low volley.
+    const isSmash = (type==="fast" && ball.y>=2.0);
+    const shotType = sfs ? "super" : (isSmash ? "smash" : (isVolley ? "volley" : type));
+    lastShot = Analytics.logShot({
+      by:"player", type:shotType,
+      speed:Math.hypot(vx,vz), dirX:rel.aim||0,
+      from:{x:ball.x,z:ball.z},
+      land:{x:ball.x+vx*0.5, z:ball.z+vz*0.5}   // approximate; land resolved by physics
+    });
+
+    registerHit();
+    player.flash=1; player.swing=1;
+    if(sfs){ Snd.superFast(); FX.spark(ball.x,ball.y,ball.z,"#ffe95f",26,6); ball.super=1.0; }
+    else if(isVolley){
+      stats.volleys++;
+      /* Match the sound to the shot's intensity. A FAST volley that didn't
+         earn SUPER is still a firm punch IF it was struck with commitment —
+         those get the punchier fastVolley crack. A soft, low, barely-charged
+         fast volley is a block, not a put-away, so it gets the ordinary
+         volley sound. (Previously fastVolley fired only on the WEAKEST fast
+         volleys, because every committed one became SUPER first — the loud
+         sound was attached to the feeblest shots.) */
+      const firm = (type==="fast") && (p>=0.35 || ball.y>=1.5);
+      if(firm){ Snd.fastVolley(); FX.spark(ball.x,ball.y,ball.z,"#ff5f7e",16,4); }
+      else { Snd.volley(); }
+    }
+    else{
+      Snd.hit(p, type==="fast"&&p>0.75);
+    }
+    if(!sfs) FX.spark(ball.x,ball.y,ball.z,
+      type==="fast"?"#ff5f7e":type==="lob"?"#b160ff":"#5ff5e8",
+      type==="fast"?16:10,4);
+    return true;
+  }
+
+  function stepBall(dt){
+    if(!ball.live)return;
+    const P=CFG.phys,C=CFG.court;
+    const prevX=ball.x, prevZ=ball.z, prevY=ball.y;
+    ball.vy-=P.g*dt;
+    const drag=Math.pow(P.airDrag,dt*60);
+    ball.vx*=drag; ball.vz*=drag;
+    ball.x+=ball.vx*dt; ball.y+=ball.vy*dt; ball.z+=ball.vz*dt;
+
+    if(ball.y<0.03 && ball.vy<0){
+      /* Interpolate the TRUE ground-contact point at the moment y crosses the
+         bounce plane, rather than judging at the post-step position. At speed
+         the ball can travel a noticeable distance within one physics step, so
+         using the end-of-step x/z could call an in-bounce out (or vice-versa).
+         We solve the fraction of this step at which y hit the plane and read
+         x/z there — that is where the ball actually met the court. */
+      const py=prevY, cy=ball.y;
+      const frac = (py>cy) ? clamp((py-0.03)/(py-cy),0,1) : 1;
+      const contactX = prevX + (ball.x-prevX)*frac;
+      const contactZ = prevZ + (ball.z-prevZ)*frac;
+      // Snap the ball to the contact point so visuals and judgment agree.
+      ball.x = contactX; ball.z = contactZ;
+      ball.y=0.03; ball.vy=-ball.vy*P.restitution;
+      ball.vx*=P.friction; ball.vz*=P.friction;
+      const firstBounce = (ball.bounces===0);
+      ball.bounces++;
+      ball.super=0;    // super status ends when the ball bounces
+      ball.isServe=false;  // a served ball becomes a normal ball once it bounces
+      if(firstBounce && window.PULSE_DEBUG){
+        window.PULSE_LAST_BOUNCE={x:contactX,z:contactZ,in:ballIn(contactX,contactZ)};
+      }
+      Snd.bounce(Math.abs(ball.vy));
+      FX.spark(contactX,.03,contactZ,"#3a9bff",6,1.6);
+
+      /* ── ITF line judgment on the FIRST bounce ────────────
+         A ball is IN if any part of it touches a line; it is OUT only when
+         its edge clears the line's outer edge. So we test the contact patch:
+         in-bounds if |x| ≤ hw + ballR (sidelines) and 0−ballR ≤ z ≤ len + ballR
+         (baselines). Lines themselves are IN. Only the first bounce decides
+         in/out — a second bounce is simply the point ending in play. The same
+         ballIn() test is used by the CPU and by any placement logic, so every
+         system judges identically. */
+      if(firstBounce && !ballIn(contactX, contactZ)){
+        const wide = Math.abs(contactX) > C.hw + C.ballR;
+        point(ball.lastHitBy==="player"?"cpu":"player", wide?"wide":"out");
+        return;
+      }
+      if(ball.bounces>=2){
+        const ace = ball.lastHitBy==="player" && rally<=1;
+        point(ball.lastHitBy==="player"?"player":"cpu",
+              ball.lastHitBy==="player"?(ace?"ace":"winner"):"rally");
+        if(ace) Snd.ace();
+        return;
+      }
+    }
+    if((prevZ-C.netZ)*(ball.z-C.netZ)<0){
+      const t=(C.netZ-prevZ)/((ball.z-prevZ)||1e-6);
+      if(lerp(prevY,ball.y,t)<C.netH){
+        Snd.net();
+        FX.spark(ball.x,lerp(prevY,ball.y,t),C.netZ,"#ff5f7e",12,2.4);
+        point(ball.lastHitBy==="player"?"cpu":"player","net");
+        return;
+      }
+    }
+    /* No-bounce fly-out safety net. IMPORTANT: this must only fire before the
+       ball has bounced. After a valid in-bounds first bounce the point is live
+       and the ball naturally sails off the far end on its rebound — that is
+       NOT an out. (The old check fired regardless of bounce count, so a
+       perfectly good deep shot was called out the instant its rebound crossed
+       the far margin, before the second bounce could end the point. That was
+       the phantom-out bug.) So: only a ball that leaves the court WITHOUT ever
+       bouncing is out against the hitter. */
+    if(ball.bounces===0){
+      if(ball.z > C.len + 3){
+        point(ball.lastHitBy==="player"?"cpu":"player","out"); return;
+      }
+      if(ball.z < -3){
+        point(ball.lastHitBy==="player"?"cpu":"player","out"); return;
+      }
+    }
+    ball.push();
+  }
+
+  function update(dt){
+    player.update(dt); cpuA.update(dt); FX.step(dt);
+    scoreAnim.p=Math.max(0,scoreAnim.p-dt*2.4);
+    scoreAnim.c=Math.max(0,scoreAnim.c-dt*2.4);
+    if(state!=="playing")return;
+    Input.tick(dt);
+
+    /* ── positioning — the player drives it ──────────────
+       The return area follows the finger. Press somewhere and the
+       player glides there; hold the finger still and they stop and
+       stay stopped. This replaces auto-tracking outright: the two
+       cannot coexist, because both want to own the same thing.
+
+       One subtlety. The swipe both aims the shot and, incidentally,
+       moves the finger — so once a swipe is committed the target is
+       FROZEN at the press point. Otherwise aiming left would walk
+       you left, and you could never aim without repositioning.
+
+       With no finger down the player drifts back toward the middle,
+       slowly: they recover, but they do not track the ball. Where
+       you stand is now entirely your problem. ── */
+    const tgt = Input.posTarget();     // {x,z} | null
+    let wantX, wantZ;
+    const serving = (phase==="serve_ready"||phase==="serve_toss") && server==="player";
+    if(serving){
+      // Real-tennis serve: you may shuffle left/right along the baseline to
+      // choose where you stand, but you cannot move up or back — the feet
+      // stay on the line. Touch sets x only; z is pinned to the baseline.
+      wantX = tgt ? tgt.x : player.x;
+      wantZ = CFG.player.baseZ;
+    }else if(tgt){
+      wantX = tgt.x; wantZ = tgt.z;
+    }else{
+      wantX = lerp(player.x, 0, 1-Math.pow(CFG.player.recover,dt));
+      wantZ = CFG.player.baseZ;
+    }
+    wantX = clamp(wantX, -CFG.court.hw-0.6, CFG.court.hw+0.6);
+    wantZ = clamp(wantZ, CFG.player.minZ, CFG.player.maxZ);
+
+    // Accelerate toward the target instead of jumping to it. Slowing down and
+    // reversing use a higher rate than speeding up, which reads as a player
+    // planting their feet rather than sliding on ice.
+    const dx = wantX - player.x;
+    player.vx = player.vx || 0;
+    if(Math.abs(dx) < CFG.player.trackEase){
+      const bleed = CFG.player.decel*dt;
+      player.vx = Math.abs(player.vx)<=bleed ? 0 : player.vx-Math.sign(player.vx)*bleed;
+    }else{
+      const want = clamp(dx*3.2, -TRACK_SPEED, TRACK_SPEED);
+      const dv = want - player.vx;
+      const braking = (want===0) || (Math.sign(want)!==Math.sign(player.vx) && player.vx!==0)
+                    || Math.abs(want)<Math.abs(player.vx);
+      const rate = (braking ? CFG.player.decel : CFG.player.accel)*dt;
+      player.vx += clamp(dv, -rate, rate);
+    }
+    player.x += player.vx*dt;
+    if(player.x<-CFG.court.hw-0.6){ player.x=-CFG.court.hw-0.6; player.vx=0; }
+    if(player.x> CFG.court.hw+0.6){ player.x= CFG.court.hw+0.6; player.vx=0; }
+
+    // forward/back: same easing, slower — you cannot sprint up the court
+    const dz = wantZ - player.z;
+    if(Math.abs(dz) > 0.02){
+      player.z += clamp(dz*3.2*dt, -CFG.player.zSpeed*dt, CFG.player.zSpeed*dt);
+    }
+
+    Cam.follow(player.x,dt);
+
+    if(freeze>0){ freeze-=dt; if(freeze<=0) prepServe(); return; }
+
+    /* ── input is consumed FIRST, in every phase.
+          (The old build returned before this line during a
+           serve, which is why serve input did nothing.) ── */
+    cooldown=Math.max(0,cooldown-dt);
+    const rel=Input.consumeRelease();
+
+    if(phase==="serve_ready"){
+      if(server==="player"){
+        ball.x=player.x; ball.z=player.z+0.35;
+        ball.y=1.05+Math.sin(performance.now()*.004)*.05;
+        // holding past tossDelay throws the ball up
+        if(Input.st.holding){
+          serveHoldT+=dt;
+          if(serveHoldT>=CFG.serve.tossDelay){ phase="serve_toss"; tossT=0; Snd.toss(); }
+        }else{
+          serveHoldT=0;
+          // a bare tap with no hold: toss and swing on the way up
+          if(rel){ phase="serve_toss"; tossT=0; Snd.toss(); }
+        }
+      }else{
+        ball.x=cpuA.x; ball.z=cpuA.z-0.35; ball.y=CFG.serve.contactY;
+        /* Online: the far side is a person. Only the host advances the serve,
+           and it does so when the guest's swing request arrives — never by
+           running the AI's serve routine, which would serve for them. */
+        if(!Net.active){
+          if(brain.serveTick(ball,dt)) phase="rally";
+        }else if(Net.isHost){
+          const sw=Net.takeRemoteSwing();
+          if(sw){ brain.serveNow(ball, sw); phase="rally"; }
+        }
+      }
+      return;
+    }
+
+    if(phase==="serve_toss"){
+      serveTossUpdate(dt);
+      if(rel && cooldown<=0){
+        if(Net.active && !Net.isHost){
+          // Guest: ask the host to serve for us; it owns the ball.
+          Net.requestSwing(rel);
+          player.swing=1; cooldown=CFG.swing.cooldown;
+        }else{
+          hitServe(rel); cooldown=CFG.swing.cooldown;
+        }
+      }
+      serveIdle+=dt;
+      if(serveIdle>CFG.serve.autoAfter){   // failsafe: never stall the match
+        hitServe({shot:"normal",power:0.5,aim:0});
+        serveIdle=0;
+      }
+      return;
+    }
+
+    // ── rally
+    /* In an online match the opponent is a person, not the AI. The host runs
+       the authoritative simulation (its CPU brain is replaced by the remote
+       player's inputs); the guest runs no simulation at all — it renders the
+       state the host sends and forwards its own inputs. Mixing the two would
+       diverge within seconds, because two browsers never agree on floating
+       point or frame timing. */
+    if(!Net.active){
+      brain.think(ball,dt);
+    }else if(Net.isHost){
+      Net.driveRemoteOpponent(cpuA, ball, dt);
+      /* The guest's swing is executed through the SAME strike path the AI
+         uses, so the remote player is bound by identical reach, timing and
+         shot rules. A client cannot hit a ball it couldn't legitimately
+         reach — the host decides, not the sender. */
+      const sw=Net.takeRemoteSwing();
+      if(sw && cpuCanReturn(ball, cpuA)){
+        brain.strike(ball, sw);
+      }
+    }
+
+    /* ── Release fires the shot, but only once the ball is on our side.
+          Two distinct cases, and conflating them is what made the old
+          model feel wrong:
+
+          (a) Released BEFORE the ball crossed the net. That is not a
+              mistake — the spec explicitly allows holding and waiting.
+              The swing simply stays armed with no timer running, and
+              fires the instant the ball arrives in range.
+
+          (b) Released AFTER it crossed, but out of range (wrong lane,
+              too deep, too high). That IS a mistake, so the buffer runs
+              and the swing eventually whiffs.                        ── */
+    if(rel && cooldown<=0){
+      /* Online guest: we don't own the simulation, so a swing becomes a
+         request to the host rather than a local shot. The host validates our
+         reach and resolves it, then streams the result back. */
+      if(Net.active && !Net.isHost){
+        Net.requestSwing(rel);
+        player.swing=1; cooldown=CFG.swing.cooldown;
+      }else{
+        pending=rel; pendingT=0; pendingArmed=0;
+        player.swing=1;                     // animate immediately — feels responsive
+      }
+    }
+    if(pending){
+      const crossed = ball.live && ball.z < CFG.court.netZ && ball.vz < 0;
+      // Total time the swing has been armed, whether or not the ball crossed.
+      // The player's input is only honoured for a window after release — an
+      // early press does NOT sit latched forever waiting to auto-connect.
+      // If the ball isn't reachable within that window, the swing whiffs and
+      // the point can be lost. This is what stops the game returning for you.
+      pendingArmed+=dt;
+      if(canReturn()){
+        doReturn(pending);
+        pending=null; cooldown=CFG.swing.cooldown;
+      }else if(crossed){
+        pendingT+=dt;
+        if(pendingT>=CFG.swingBuffer.buffer){
+          Snd.whiff();
+          pending=null; cooldown=CFG.swing.cooldown;
+        }
+      }else if(pendingArmed>=CFG.swingBuffer.armWindow){
+        // Pressed too early: the input expires before the ball is playable.
+        // No auto-hold, no free return — you simply missed your timing.
+        Snd.whiff();
+        pending=null; cooldown=CFG.swing.cooldown;
+      }
+    }
+    /* Physics. The guest never integrates the ball — the host is authoritative
+       and streams the result. Running it locally as well would fight the
+       incoming snapshots and jitter. */
+    if(!(Net.active && !Net.isHost)) stepBall(dt);
+    if(Net.active){
+      Net.tick(dt, {ball, player, cpuA, score, phase});
+    }
+  }
+
+  /* ── Online: adopt the host's authoritative view ──────────
+     Roles are mirrored: the host's "player" is the guest's opponent, so the
+     score arrives swapped and we store it from our own point of view. */
+  function applyNetScore(mine, theirs){
+    if(score.p!==mine || score.c!==theirs){
+      if(mine>score.p) scoreAnim.p=1;
+      if(theirs>score.c) scoreAnim.c=1;
+      score.p=mine; score.c=theirs;
+      updateHUD();
+    }
+  }
+  function applyNetPhase(p){
+    if(p && p!==phase) phase=p;
+  }
+
+  return{
+    start,startOnline,toMatchmaking,toAnalytics,togglePause,toTitle,restart,update,registerHit,noteShot,pad,
+    applyNetScore, applyNetPhase,
+    get state(){return state;},
+    get phase(){return phase;},
+    get score(){return score;},
+    get rally(){return rally;},
+    get server(){return server;},
+    get scoreAnim(){return scoreAnim;},
+    ent:{player,cpuA,ball}
+  };
+})();
+
+/* ─── RENDER ─── */
+const Render=(()=>{
+  const C=CFG.court;
+  function line3(g,x1,y1,z1,x2,y2,z2){
+    const a=Cam.project(x1,y1,z1),b=Cam.project(x2,y2,z2);
+    if(!a.visible||!b.visible)return;
+    g.beginPath(); g.moveTo(a.sx,a.sy); g.lineTo(b.sx,b.sy); g.stroke();
+  }
+  function court(g){
+    g.save(); g.lineCap="round";
+    g.strokeStyle="rgba(95,245,232,.5)"; g.lineWidth=2.4;
+    g.shadowColor="rgba(95,245,232,.5)"; g.shadowBlur=10;
+    line3(g,-C.hw,0,0,-C.hw,0,C.len);
+    line3(g, C.hw,0,0, C.hw,0,C.len);
+    g.lineWidth=3.2; line3(g,-C.hw,0,0,C.hw,0,0);
+    g.shadowBlur=6; g.strokeStyle="rgba(95,245,232,.42)"; g.lineWidth=2.2;
+    g.setLineDash([14,12]); line3(g,-C.hw,0,C.len,C.hw,0,C.len);
+    g.strokeStyle="rgba(95,245,232,.15)"; g.lineWidth=1.4; g.setLineDash([8,10]);
+    line3(g,-C.hw,0,C.netZ-6.4,C.hw,0,C.netZ-6.4);
+    line3(g,-C.hw,0,C.netZ+6.4,C.hw,0,C.netZ+6.4);
+    g.setLineDash([]);
+    g.strokeStyle="rgba(95,245,232,.09)";
+    line3(g,0,0,C.netZ-6.4,0,0,C.netZ+6.4);
+
+    // ── the player's line. Only one now: there is no forward position to
+    //    move to, so drawing a volley line would promise something the
+    //    player cannot do.
+    g.setLineDash([5,9]); g.lineWidth=1.6;
+    g.strokeStyle="rgba(95,245,232,.28)";
+    line3(g,-C.hw,0,CFG.player.baseZ,C.hw,0,CFG.player.baseZ);
+    g.setLineDash([]);
+    g.restore();
+  }
+  function net(g){
+    g.save();
+    g.strokeStyle="rgba(95,245,232,.12)"; g.lineWidth=1;
+    for(let i=0;i<=22;i++){ const x=-C.hw+(2*C.hw)*(i/22); line3(g,x,0,C.netZ,x,C.netH,C.netZ); }
+    for(let j=1;j<=3;j++){
+      g.strokeStyle=`rgba(95,245,232,${.06+j*.02})`;
+      line3(g,-C.hw,C.netH*(j/4),C.netZ,C.hw,C.netH*(j/4),C.netZ);
+    }
+    g.strokeStyle="rgba(95,245,232,.85)"; g.lineWidth=2.6;
+    g.shadowColor="rgba(95,245,232,.7)"; g.shadowBlur=12;
+    line3(g,-C.hw,C.netH,C.netZ,C.hw,C.netH,C.netZ);
+    g.shadowBlur=0;
+    g.strokeStyle="rgba(95,245,232,.5)"; g.lineWidth=3;
+    line3(g,-C.hw,0,C.netZ,-C.hw,C.netH+.12,C.netZ);
+    line3(g, C.hw,0,C.netZ, C.hw,C.netH+.12,C.netZ);
+    g.restore();
+  }
+  function shadow(g,b){
+    const p=Cam.project(b.x,.005,b.z);
+    if(!p.visible)return;
+    const h=clamp(1-b.y/4.2,.14,1);
+    g.save(); g.globalAlpha=h*.45; g.fillStyle="#1c6f7a";
+    g.beginPath();
+    g.ellipse(p.sx,p.sy,Math.max(1,.14*p.scale*h),Math.max(.5,.05*p.scale*h),0,0,Math.PI*2);
+    g.fill(); g.restore();
+  }
+  function ball(g,b){
+    b.forEachTrail((t,a)=>{
+      const p=Cam.project(t.x,t.y,t.z);
+      if(!p.visible)return;
+      g.globalAlpha=a*a*.5; g.fillStyle="#5ff5e8";
+      g.beginPath(); g.arc(p.sx,p.sy,Math.max(.4,.055*p.scale*a),0,Math.PI*2); g.fill();
+    });
+    g.globalAlpha=1;
+    const p=Cam.project(b.x,b.y,b.z);
+    if(!p.visible)return;
+    const r=Math.max(1.6,.085*p.scale);
+    g.save();
+    if(b.super>0){
+      // Super Fast Shot: bright gold glow and a longer streaking trail.
+      // The trail we already drew above was cyan; overlay a stronger gold
+      // set of past positions on top so the streak reads as speed.
+      g.shadowColor="rgba(255,233,95,.95)"; g.shadowBlur=28;
+      b.trail.forEach((t,i)=>{
+        if(!t.live) return;
+        const age=(b.trailHead-i+b.trail.length)%b.trail.length;
+        const a=1-age/b.trail.length;
+        const pt=Cam.project(t.x,t.y,t.z);
+        if(!pt.visible) return;
+        g.globalAlpha=a*a*b.super*0.85;
+        g.fillStyle="#ffe95f";
+        g.beginPath(); g.arc(pt.sx,pt.sy,Math.max(.6,.09*pt.scale*a),0,Math.PI*2); g.fill();
+      });
+      g.globalAlpha=1;
+    }else{
+      g.shadowColor="rgba(150,255,245,.95)"; g.shadowBlur=18;
+    }
+    g.fillStyle=b.super>0?"#fffbdc":"#eafffd";
+    g.beginPath(); g.arc(p.sx,p.sy,r*(b.super>0?1.15:1),0,Math.PI*2); g.fill();
+    g.shadowBlur=0; g.fillStyle="#fff";
+    g.beginPath(); g.arc(p.sx-r*.25,p.sy-r*.25,r*.4,0,Math.PI*2); g.fill();
+    g.restore();
+  }
+  function actor(g,a,rgb,isPlayer){
+    // A short bar at the player's feet. The real hit region is the ellipse
+    // drawn by destMarker() — this is just the body.
+    const w = isPlayer ? 0.85 : 1.45;
+    const cx = a.x;
+    const pL=Cam.project(cx-w,.02,a.z), pR=Cam.project(cx+w,.02,a.z);
+    if(!pL.visible||!pR.visible)return;
+    const lift=Math.sin(a.swing*Math.PI)*(isPlayer?16:9);
+    g.save();
+    g.strokeStyle=`rgba(${rgb},${.55+a.flash*.45})`;
+    g.lineWidth=isPlayer?4.5:3; g.lineCap="round";
+    g.shadowColor=`rgba(${rgb},${.5+a.flash*.5})`; g.shadowBlur=12+a.flash*22;
+    g.beginPath();
+    g.moveTo(pL.sx,pL.sy-lift*.3);
+    g.quadraticCurveTo((pL.sx+pR.sx)/2,(pL.sy+pR.sy)/2-lift,pR.sx,pR.sy-lift*.3);
+    g.stroke(); g.restore();
+  }
+  /** The return area — the ellipse the player actually covers.
+      Drawn honestly: what you see is exactly what canReturn() tests. */
+  function destMarker(g){
+    const p=Match.ent.player;
+    const c=areaCentre(p.x,p.z);
+    const N=44, pts=[];
+    for(let i=0;i<=N;i++){
+      const th=(i/N)*Math.PI*2;
+      const cs=Math.cos(th), sn=Math.sin(th);
+      // a plain circle now — equal reach in every direction
+      const pr=Cam.project(c.x+cs*CFG.area.radius, .02, c.z+sn*CFG.area.radius);
+      if(!pr.visible){ pts.length=0; break; }
+      pts.push(pr);
+    }
+    if(!pts.length) return;
+    g.save();
+    g.beginPath();
+    g.moveTo(pts[0].sx,pts[0].sy);
+    for(let i=1;i<pts.length;i++) g.lineTo(pts[i].sx,pts[i].sy);
+    g.closePath();
+    g.fillStyle="rgba(95,245,232,.05)";
+    g.fill();
+    g.strokeStyle="rgba(95,245,232,.32)";
+    g.lineWidth=1.6; g.setLineDash([5,7]);
+    g.stroke();
+    g.setLineDash([]);
+    g.restore();
+  }
+  /** Serve toss guide — shows the legal contact band */
+  function serveGuide(g){
+    if(Match.phase!=="serve_toss"||Match.server!=="player")return;
+    const b=Match.ent.ball, S=CFG.serve;
+    const lo=Cam.project(b.x,S.window.lo,b.z), hi=Cam.project(b.x,S.window.hi,b.z);
+    if(!lo.visible||!hi.visible)return;
+    const inBand=b.y>=S.window.lo&&b.y<=S.window.hi;
+    g.save();
+    g.strokeStyle=inBand?"rgba(95,245,232,.75)":"rgba(95,245,232,.20)";
+    g.lineWidth=inBand?2.5:1.5;
+    if(inBand){ g.shadowColor="rgba(95,245,232,.7)"; g.shadowBlur=14; }
+    const w=Math.max(14,.5*lo.scale);
+    g.beginPath(); g.moveTo(lo.sx-w,lo.sy); g.lineTo(lo.sx+w,lo.sy); g.stroke();
+    g.beginPath(); g.moveTo(hi.sx-w,hi.sy); g.lineTo(hi.sx+w,hi.sy); g.stroke();
+    g.shadowBlur=0;
+    if(inBand){
+      g.font="700 12px 'Chakra Petch', sans-serif";
+      g.fillStyle="#5ff5e8"; g.textAlign="center";
+      g.fillText("HIT",lo.sx+w+22,(lo.sy+hi.sy)/2);
+    }
+    g.restore();
+  }
+  /** The live gesture, drawn at the finger — same on mouse and touch */
+  function gesture(g){
+    const st=Input.st;
+    if(!st.active&&!st.holding)return;
+    const G=CFG.gesture, short=screenShort||1;
+    const o=Input.origin;
+    const r=cv.getBoundingClientRect();
+    // screen px → canvas-space (undo the view transform)
+    const toCv=(cx,cy)=>({
+      x:((cx-r.left)*view.dpr-view.ox)/view.scale,
+      y:((cy-r.top)*view.dpr-view.oy)/view.scale
+    });
+    const O=toCv(o.x,o.y);
+    // Draw to the CLAMPED endpoint, not the raw finger. Past the cap the
+    // line stops growing, which is the visual contract for "this is maxed".
+    const P={ x:O.x+st.gx*(view.dpr/view.scale), y:O.y+st.gy*(view.dpr/view.scale) };
+    const shot=st.shotPreview;
+    const col=shot==="fast"?"#ff5f7e":shot==="lob"?"#b160ff":"#5ff5e8";
+    const k=view.dpr/view.scale;
+
+    g.save();
+    /* The dead-zone / commit / cap rings that used to be drawn here were a
+       holdover from the touchpad layout, where the finger sat off the court.
+       Now the finger IS on the court, so they landed on top of the return
+       area and read as a second, meaningless ring. The shot label below
+       already says which shot is armed, which is the only thing those rings
+       communicated. The aim line and the power arc stay — they carry
+       direction and charge, which no label can. */
+    if(st.gLen>2){
+      g.strokeStyle=col; g.lineWidth=3*k; g.lineCap="round";
+      g.shadowColor=col; g.shadowBlur=10; g.globalAlpha=.9;
+      g.beginPath(); g.moveTo(O.x,O.y); g.lineTo(P.x,P.y); g.stroke();
+      g.globalAlpha=1; g.shadowBlur=0;
+    }
+    const ln=st.gLen/short;
+    const pow = shot==="normal" ? Input.charge
+              : clamp((ln-G.commit)/(G.fullPower-G.commit),0,1);
+    const rr=26*k;
+    g.strokeStyle="rgba(95,245,232,.14)"; g.lineWidth=4*k;
+    g.beginPath(); g.arc(P.x,P.y,rr,-Math.PI*.5,Math.PI*1.5); g.stroke();
+    g.strokeStyle=col; g.shadowColor=col; g.shadowBlur=12; g.lineCap="round";
+    g.beginPath(); g.arc(P.x,P.y,rr,-Math.PI*.5,-Math.PI*.5+Math.PI*2*pow); g.stroke();
+    g.shadowBlur=0;
+
+    /* Shot-type label — sits just BELOW the player, small and dim. This is the
+       only shot-type readout now that the big centre banner is gone: it tells
+       you which shot is armed without covering the court. */
+    let label=shot==="fast"?"FAST":shot==="lob"?"LOB":"FLAT";
+    if(Match.phase==="serve_toss") label = (shot==="fast"&&pow>0.45)?"FAST SERVE":"SERVE";
+    else if(Match.ent.ball.live && Match.ent.ball.bounces===0 &&
+            Match.ent.ball.vz<0 && Match.ent.ball.z<CFG.court.netZ) label="VOLLEY";
+    const pl=Match.ent.player;
+    const pp=Cam.project(pl.x, 0, pl.z);
+    if(pp.visible){
+      g.font=`700 ${10*k}px 'Chakra Petch', sans-serif`;
+      g.textAlign="center"; g.textBaseline="middle";
+      g.fillStyle=col; g.globalAlpha=0.55;
+      g.shadowColor=col; g.shadowBlur=6;
+      g.fillText(label, pp.sx, pp.sy + 34*k);
+      g.globalAlpha=1; g.shadowBlur=0;
+    }
+    g.restore();
+  }
+  /** Ring on the ball the moment it becomes hittable — the missing cue for "when do I swing?" */
+  function strikeCue(g){
+    if(Match.phase!=="rally")return;
+    const b=Match.ent.ball, p=Match.ent.player;
+    if(!b.live||b.vz>=0)return;
+    // Mirrors canReturn(): past the net, inside the return area.
+    if(b.z>=CFG.court.netZ) return;
+    if(!inArea(b.x,b.z,p.x,p.z)) return;
+    if(b.y>3.2) return;
+    const vol = b.bounces===0;   // same rule as doReturn()
+    const pr=Cam.project(b.x,b.y,b.z);
+    if(!pr.visible)return;
+    const col=vol?"#ff5f7e":"#5ff5e8";
+    const pulse=0.55+Math.sin(performance.now()*.018)*0.25;
+    const r=Math.max(10,.30*pr.scale);
+    g.save();
+    g.strokeStyle=col; g.lineWidth=2.5; g.globalAlpha=pulse;
+    g.shadowColor=col; g.shadowBlur=14;
+    g.beginPath(); g.arc(pr.sx,pr.sy,r,0,Math.PI*2); g.stroke();
+    g.restore();
+  }
+  function hud(g){
+    const s=Match.score,a=Match.scoreAnim;
+    // Authored against the 1080x1980 canvas. Sits below the top button row
+    // and well clear of the court, whose far baseline is around y=1160.
+    const y=232;
+    const base=76;
+    const sep=132;
+    g.save(); g.textAlign="center"; g.textBaseline="middle";
+    g.font=`${base+a.p*14}px 'Share Tech Mono', monospace`;
+    g.fillStyle="#5ff5e8"; g.shadowColor="rgba(95,245,232,.7)"; g.shadowBlur=16+a.p*20;
+    g.fillText(Match.pad(s.p),CFG.W/2-sep,y);
+    g.font=`${base}px 'Share Tech Mono', monospace`;
+    g.shadowBlur=8; g.fillStyle="rgba(95,245,232,.45)";
+    g.fillText("-",CFG.W/2,y);
+    g.font=`${base+a.c*14}px 'Share Tech Mono', monospace`;
+    g.fillStyle="#b160ff"; g.shadowColor="rgba(177,96,255,.7)"; g.shadowBlur=16+a.c*20;
+    g.fillText(Match.pad(s.c),CFG.W/2+sep,y);
+    g.shadowBlur=0;
+    if(Match.phase==="serve_ready"&&Match.server==="player"){
+      g.font="26px 'Share Tech Mono', monospace";
+      g.fillStyle="rgba(216,255,251,.42)";
+      g.fillText("HOLD TO TOSS",CFG.W/2,y+72);
+    }else if(Match.rally>1){
+      g.font="28px 'Share Tech Mono', monospace";
+      g.fillStyle="rgba(216,255,251,.32)";
+      g.fillText(`RALLY ${Match.rally}`,CFG.W/2,y+72);
+    }
+    g.restore();
+  }
+  function banner(g){
+    const b=FX.banner; if(!b)return;
+    const k=b.t/b.max;
+    g.save(); g.globalAlpha=Math.min(1,k*2.2);
+    g.textAlign="center"; g.textBaseline="middle";
+    g.font=`700 ${68+(1-k)*16}px 'Chakra Petch', sans-serif`;
+    g.fillStyle=b.color; g.shadowColor=b.color; g.shadowBlur=26;
+    g.fillText(b.text,CFG.W/2,CFG.H*.34);
+    g.restore();
+  }
+  /* ── Cached render assets ────────────────────────────────
+     The scanline overlay and the two backdrop gradients are
+     identical every frame. Rebuilding them per frame cost 240
+     fillRect calls and 2 gradient allocations *per frame* —
+     ~864,000 draw calls and 7,200 allocations a minute, all to
+     produce the same pixels. They are built once here instead.
+     ────────────────────────────────────────────────────── */
+  let scanPat=null, bgGrad=null;
+
+  function buildCache(g){
+    if(!scanPat){
+      // A 1x3 tile repeated by the pattern engine — no stretching, no blur,
+      // and a single fillRect covers the screen.
+      const c=document.createElement("canvas");
+      c.width=1; c.height=3;
+      const cg=c.getContext("2d");
+      cg.fillStyle="rgba(0,0,0,.055)";
+      cg.fillRect(0,0,1,1.5);
+      scanPat=g.createPattern(c,"repeat");
+    }
+    if(!bgGrad){
+      bgGrad=g.createLinearGradient(0,0,0,CFG.H);
+      bgGrad.addColorStop(0,"#0d1820");
+      bgGrad.addColorStop(.44,"#152e35");
+      bgGrad.addColorStop(1,"#0d1b21");
+    }
+  }
+
+  function crt(g){
+    // Vignette removed for visibility — the corner darkening dimmed the whole
+    // court and made the ball harder to track. Only the light scanline
+    // texture remains.
+    g.save();
+    g.fillStyle=scanPat;
+    g.fillRect(0,0,CFG.W,CFG.H);
+    g.restore();
+  }
+  function frame(){
+    const g=ctx2;
+    g.setTransform(1,0,0,1,0,0);
+    g.fillStyle="#070d12"; g.fillRect(0,0,cv.width,cv.height);
+    const z=1+FX.zoom;
+    const sx=FX.shake?rand(-FX.shake,FX.shake):0;
+    const sy=FX.shake?rand(-FX.shake,FX.shake):0;
+    g.setTransform(view.scale*z,0,0,view.scale*z,
+      view.ox-(CFG.W*view.scale*(z-1))/2+sx,
+      view.oy-(CFG.H*view.scale*(z-1))/2+sy);
+    buildCache(g);
+    g.fillStyle=bgGrad; g.fillRect(0,0,CFG.W,CFG.H);
+    const {player,cpuA,ball:b}=Match.ent;
+    court(g);
+    actor(g,cpuA,"177,96,255",false);
+    net(g);
+    shadow(g,b);
+    FX.draw(g);
+    ball(g,b);
+    strikeCue(g);
+    destMarker(g);
+    actor(g,player,"95,245,232",true);
+    serveGuide(g);
+    gesture(g);
+    if(FX.flash>.002){ g.fillStyle=`rgba(${FX.flashRGB},${FX.flash})`; g.fillRect(0,0,CFG.W,CFG.H); }
+    if(window.PULSE_DEBUG) debugJudge(g);
+    hud(g); banner(g); crt(g);
+  }
+
+  /* ── Judgment debug overlay (toggle: window.PULSE_DEBUG=true) ──
+     Draws the EXACT in/out boundary used by ballIn() — the nominal court plus
+     one ball radius on every side — and marks the last first-bounce contact
+     point with its computed verdict. Lets us confirm the drawn court, the
+     judgment box, and the actual bounce coordinate all agree. Remove/disable
+     by leaving PULSE_DEBUG unset (default). */
+  function debugJudge(g){
+    const C=CFG.court, r=CFG.ballR;
+    // in/out boundary (green = in region edge)
+    g.save();
+    g.strokeStyle="rgba(80,255,120,.9)"; g.lineWidth=2; g.setLineDash([6,6]);
+    const corners=[[-C.hw-r,-r],[C.hw+r,-r],[C.hw+r,C.len+r],[-C.hw-r,C.len+r],[-C.hw-r,-r]];
+    g.beginPath();
+    for(let i=0;i<corners.length;i++){
+      const p=Cam.project(corners[i][0],0,corners[i][1]);
+      if(i===0)g.moveTo(p.sx,p.sy); else g.lineTo(p.sx,p.sy);
+    }
+    g.stroke(); g.setLineDash([]);
+    // nominal court lines (white) for comparison
+    g.strokeStyle="rgba(255,255,255,.5)"; g.lineWidth=1;
+    const nb=[[-C.hw,0],[C.hw,0],[C.hw,C.len],[-C.hw,C.len],[-C.hw,0]];
+    g.beginPath();
+    for(let i=0;i<nb.length;i++){const p=Cam.project(nb[i][0],0,nb[i][1]);if(i===0)g.moveTo(p.sx,p.sy);else g.lineTo(p.sx,p.sy);}
+    g.stroke();
+    // last bounce marker
+    if(window.PULSE_LAST_BOUNCE){
+      const b=window.PULSE_LAST_BOUNCE;
+      const p=Cam.project(b.x,0,b.z);
+      g.fillStyle=b.in?"rgba(80,255,120,.95)":"rgba(255,80,80,.95)";
+      g.beginPath(); g.arc(p.sx,p.sy,8,0,Math.PI*2); g.fill();
+      g.fillStyle="#fff"; g.font="600 20px monospace"; g.textAlign="left";
+      g.fillText(`${b.in?"IN":"OUT"}  x=${b.x.toFixed(2)} z=${b.z.toFixed(2)}`, 20, 40);
+      g.fillText(`court: x[${(-C.hw).toFixed(1)},${C.hw.toFixed(1)}] z[0,${C.len.toFixed(1)}] r=${r}`, 20, 66);
+    }
+    g.restore();
+  }
+  return{frame};
+})();
+
+/* ─── LOOP ─── */
+const STEP=1/120;
+let acc=0,last=performance.now();
+let errCount=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  try{
+    let dt=(now-last)/1000; last=now;
+    if(dt>.25)dt=.25;
+    acc+=dt;
+    let guard=0;
+    while(acc>=STEP&&guard++<12){ Match.update(STEP); acc-=STEP; }
+    Render.frame();
+  }catch(err){
+    // A thrown frame must not kill the loop. Without this an exception
+    // stops requestAnimationFrame permanently and the game freezes on a
+    // black screen with no way back. Log, skip the frame, carry on — and
+    // if it's persistent, say so rather than looping silently forever.
+    if(errCount++<5) console.error("[PulseCourt] frame error:",err);
+    else if(errCount===6) console.error("[PulseCourt] further frame errors suppressed");
+    acc=0;
+  }
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    if(Match.state==="playing")Match.togglePause();
+    Snd.suspend();            // stop burning battery in a background tab
+  }else{
+    Snd.resume();
+  }
+  last=performance.now(); acc=0;
+});
+
+/* ─── ONLINE (PeerJS / WebRTC) ─────────────────────────────
+   Real peer-to-peer play over the free public PeerJS cloud
+   signalling server. No backend of our own is required: PeerJS
+   brokers the WebRTC handshake, after which the two browsers
+   exchange game state directly.
+
+   Pairing model: ROOM CODES. One player hosts (gets a short code),
+   the other joins with that code. This is deliberate — an open
+   "find any stranger" queue only works when a population is
+   already online, whereas a code always works between two people
+   who want to play. The staged region→world search of the earlier
+   mock has been dropped because it promised matchmaking we cannot
+   actually deliver on a free signalling server.
+
+   The transport stays behind the NetClient interface, so a real
+   matchmaking backend can replace it later without touching the
+   game or the UI:
+     connect()        → Promise, opens the signalling channel
+     host()           → Promise<code>, become the host
+     join(code)       → Promise, connect to a host
+     send(msg)        → send a message to the peer
+     on(evt,cb)       → 'data' | 'open' | 'close' | 'error'
+     cancel()         → tear everything down
+   ───────────────────────────────────────────────────────── */
+
+/* Several CDNs, tried in order. A single hardcoded host is a single point of
+   failure: any one of them can be down, blocked by a network, or refused by
+   the page's Content-Security-Policy. */
+const PEERJS_CDNS = [
+  "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js",
+  "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"
+];
+
+/** Load one script URL. Resolves if it runs and defines Peer. */
+function loadScriptOnce(url){
+  return new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src=url; s.async=true; s.crossOrigin="anonymous";
+    let done=false;
+    const finish=(ok,err)=>{
+      if(done) return; done=true;
+      clearTimeout(timer);
+      ok ? res() : rej(err||new Error("load failed"));
+    };
+    // A blocked script sometimes fires neither onload nor onerror, so cap it.
+    const timer=setTimeout(()=>finish(false,new Error("timed out")),8000);
+    s.onload=()=>finish(!!window.Peer, window.Peer?null:new Error("loaded but Peer missing"));
+    s.onerror=()=>finish(false,new Error("blocked or unreachable"));
+    document.head.appendChild(s);
+  });
+}
+
+/** Load the PeerJS library on demand, so the game boots instantly for the
+    (many) players who never touch online play. Tries each CDN in turn. On
+    total failure the promise is NOT cached, so the player can simply press
+    the button again rather than being stuck for the whole session. */
+let _peerLibPromise = null;
+function loadPeerLib(){
+  if(window.Peer) return Promise.resolve();
+  /* Opening the game straight from disk (file://) makes the browser treat the
+     page as a unique, opaque origin — external scripts and WebRTC signalling
+     are refused outright, usually before any network request is even made.
+     Detect that up front and say so plainly, rather than letting the player
+     watch three CDNs "fail" for reasons that have nothing to do with them. */
+  if(location.protocol==="file:"){
+    return Promise.reject(new Error(
+      "Online play needs the game to be served over http(s). Opening the file " +
+      "directly from your computer blocks it. Host it (or use a local server) " +
+      "and online will work. CPU MATCH plays fine either way."
+    ));
+  }
+  if(_peerLibPromise) return _peerLibPromise;
+  _peerLibPromise = (async()=>{
+    const errs=[];
+    for(const url of PEERJS_CDNS){
+      try{ await loadScriptOnce(url); if(window.Peer) return; }
+      catch(e){ errs.push(url.split("/")[2]+": "+e.message); }
+    }
+    console.warn("[Online] PeerJS load failures →", errs.join(" | "));
+    throw new Error(
+      "Couldn't load the networking library. This is usually a blocked script — " +
+      "try opening the game in its own browser tab, or check your connection/ad-blocker."
+    );
+  })();
+  // Clear the cache on failure so a retry actually retries.
+  _peerLibPromise.catch(()=>{ _peerLibPromise=null; });
+  return _peerLibPromise;
+}
+
+/** Short, unambiguous room codes — no 0/O or 1/I to mistype. */
+const CODE_ALPHABET="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function makeCode(n=5){
+  let s="";
+  for(let i=0;i<n;i++) s+=CODE_ALPHABET[Math.floor(Math.random()*CODE_ALPHABET.length)];
+  return s;
+}
+// Namespaced so we never collide with other apps on the public broker.
+const ROOM_PREFIX="pulsecourt-";
+/* Size of the random-match seat pool. Each seat is one concurrent game, so
+   this caps simultaneous random matches. Kept modest because every empty seat
+   costs a probe when searching; raise it if the game gets busy. */
+const RANDOM_SEATS=24;
+
+class PeerNetClient{
+  constructor(){
+    this.peer=null; this.conn=null; this.handlers={};
+    this.code=null; this.isHost=false; this.dead=false;
+  }
+  on(evt,cb){ (this.handlers[evt]||(this.handlers[evt]=[])).push(cb); }
+  _emit(evt,payload){ (this.handlers[evt]||[]).forEach(cb=>{ try{cb(payload);}catch(e){console.warn(e);} }); }
+
+  async connect(){ await loadPeerLib(); }
+
+  /** Become the host. Resolves with the room code to share. */
+  /** Open a room. Pass a password to choose your own; omit it for a random
+      code. A password lets two friends agree on a word in advance instead of
+      one of them having to read a generated code to the other. */
+  host(password){
+    return new Promise(async (resolve,reject)=>{
+      try{ await this.connect(); }catch(e){ return reject(e); }
+      const chosen = password ? String(password).trim().toUpperCase() : null;
+      const code = chosen || makeCode();
+      this.code=code; this.isHost=true;
+      this.peer=new window.Peer(ROOM_PREFIX+code,{debug:0});
+      let settled=false;
+      this.peer.on("open",()=>{ if(!settled){ settled=true; resolve(code); } });
+      this.peer.on("connection",c=>{ this._bindConn(c); });
+      this.peer.on("error",err=>{
+        if(!settled && err && err.type==="unavailable-id"){
+          settled=true;
+          try{ this.peer.destroy(); }catch(e){}
+          if(chosen){
+            // A chosen password is already in use — tell the player rather
+            // than silently moving them to a different room.
+            reject(new Error("That password is already in use. Pick another, or join it instead."));
+          }else{
+            this.host().then(resolve,reject);   // generated code clashed: retry
+          }
+          return;
+        }
+        if(!settled){ settled=true; reject(this._friendly(err)); }
+        else this._emit("error",this._friendly(err));
+      });
+    });
+  }
+
+  /** Join an existing host by code. Resolves once the link is open. */
+  join(code){
+    return this._joinId(ROOM_PREFIX+String(code||"").trim().toUpperCase(), {
+      empty:"Enter a room code.",
+      missing:"No one is hosting that code."
+    }, String(code||"").trim());
+  }
+
+  /** Shared join path so friend-match and random-match behave identically. */
+  _joinId(fullId, msgs, rawCode){
+    return new Promise(async (resolve,reject)=>{
+      try{ await this.connect(); }catch(e){ return reject(e); }
+      if(rawCode!==undefined && !rawCode) return reject(new Error(msgs.empty));
+      this.isHost=false;
+      this.peer=new window.Peer(undefined,{debug:0});
+      let settled=false;
+      const fail=(msg)=>{ if(!settled){ settled=true; try{this.peer.destroy();}catch(e){} reject(new Error(msg)); } };
+      this.peer.on("open",()=>{
+        const c=this.peer.connect(fullId,{reliable:true});
+        if(!c) return fail(msgs.missing);
+        c.on("open",()=>{ if(!settled){ settled=true; this._bindConn(c); resolve(); } });
+        c.on("error",()=>fail(msgs.missing));
+        setTimeout(()=>fail(msgs.missing), 9000);
+      });
+      this.peer.on("error",err=>{
+        if(err && err.type==="peer-unavailable") return fail(msgs.missing);
+        if(!settled){ settled=true; reject(this._friendly(err)); }
+        else this._emit("error",this._friendly(err));
+      });
+    });
+  }
+
+  /** Try to occupy a specific seat as host. Resolves true if we got it,
+      false if the seat is already taken (someone else is hosting there). */
+  _tryHostSeat(seatId){
+    return new Promise(async (resolve,reject)=>{
+      try{ await this.connect(); }catch(e){ return reject(e); }
+      const p=new window.Peer(seatId,{debug:0});
+      let settled=false;
+      const done=(ok)=>{ if(settled) return; settled=true;
+        if(ok){ this.peer=p; this.isHost=true; resolve(true); }
+        else { try{p.destroy();}catch(e){} resolve(false); } };
+      p.on("open",()=>{
+        // We own the seat — wait here for someone to walk in.
+        p.on("connection",c=>this._bindConn(c));
+        done(true);
+      });
+      p.on("error",err=>{
+        if(err && err.type==="unavailable-id") return done(false);  // seat taken
+        if(!settled){ settled=true; try{p.destroy();}catch(e){} reject(this._friendly(err)); }
+      });
+      setTimeout(()=>done(false), 6000);
+    });
+  }
+
+  /** Try to walk into a seat someone is already hosting. */
+  _tryJoinSeat(seatId){
+    return this._joinId(seatId, {empty:"", missing:"seat empty"})
+      .then(()=>true).catch(()=>false);
+  }
+
+  /* ── RANDOM MATCH (seat pool) ───────────────────────────
+     The public PeerJS broker has no lobby API — you cannot ask it who is
+     waiting. So we agree on a fixed set of well-known "seats". A player
+     first walks the seats looking for someone already hosting; if every
+     seat is empty they sit down in a random one and wait. Two strangers
+     therefore meet without any backend of our own.
+
+     Limits are honest: the pool size caps concurrent games, and two people
+     can race for the same seat (the loser simply retries). When the game
+     outgrows this, a real matchmaking service replaces just this method. */
+  async randomMatch(onStage, shouldStop){
+    await this.connect();
+    const seats=[];
+    for(let i=1;i<=RANDOM_SEATS;i++) seats.push(ROOM_PREFIX+"random-"+i);
+
+    // Pass 1: look for someone already waiting (in shuffled order, so we
+    // don't all pile onto seat 1).
+    const order=seats.slice().sort(()=>Math.random()-0.5);
+    onStage && onStage("Looking for an opponent…");
+    for(const id of order){
+      if(shouldStop && shouldStop()) throw new Error("cancelled");
+      if(await this._tryJoinSeat(id)) return {role:"guest"};
+    }
+
+    // Pass 2: nobody is waiting — take a seat and wait to be found.
+    if(shouldStop && shouldStop()) throw new Error("cancelled");
+    onStage && onStage("No one waiting yet — holding a table for you…");
+    for(const id of order){
+      if(shouldStop && shouldStop()) throw new Error("cancelled");
+      if(await this._tryHostSeat(id)) return {role:"host"};
+    }
+    throw new Error("All tables are busy right now. Try again in a moment.");
+  }
+
+  _bindConn(c){
+    this.conn=c;
+    c.on("data",d=>this._emit("data",d));
+    c.on("close",()=>this._emit("close"));
+    c.on("error",e=>this._emit("error",this._friendly(e)));
+    this._emit("open",{peer:c.peer});
+  }
+
+  _friendly(err){
+    const t=err && err.type;
+    if(t==="browser-incompatible") return new Error("This browser doesn't support peer-to-peer play.");
+    if(t==="network"||t==="server-error") return new Error("Lost contact with the matchmaking server.");
+    if(t==="webrtc") return new Error("The peer-to-peer connection failed.");
+    return err instanceof Error ? err : new Error("Connection problem.");
+  }
+
+  send(msg){ if(this.conn && this.conn.open){ try{ this.conn.send(msg); }catch(e){} } }
+  get connected(){ return !!(this.conn && this.conn.open); }
+
+  cancel(){
+    this.dead=true;
+    try{ if(this.conn) this.conn.close(); }catch(e){}
+    try{ if(this.peer) this.peer.destroy(); }catch(e){}
+    this.conn=null; this.peer=null;
+  }
+}
+
+let NetClient = new PeerNetClient();
+
+const Online=(()=>{
+  const stageEl=document.getElementById("matchStage");
+  const pingEl=document.getElementById("matchPing");
+  const codeEl=document.getElementById("matchCode");
+  const hostBtn=document.getElementById("btnHostRoom");
+  const joinBtn=document.getElementById("btnJoinRoom");
+  const codeInput=document.getElementById("roomCodeInput");
+  const lobbyEl=document.getElementById("matchLobby");
+  let active=false, pinger=null, lastPing=null;
+
+  function showLobby(on){ if(lobbyEl) lobbyEl.style.display = on?"":"none"; }
+  function setStage(t){ if(stageEl) stageEl.textContent=t; }
+  function setPing(t){ if(pingEl) pingEl.textContent=t||""; }
+  function setCode(t){
+    if(!codeEl) return;
+    codeEl.textContent=t||"";
+    codeEl.style.display=t?"":"none";
+  }
+
+  /** Open the online screen in its idle state. */
+  function begin(){
+    active=true;
+    Match.toMatchmaking();
+    Snd.matchStart();
+    showLobby(true);
+    setStage("Match with anyone, or share a password with a friend.");
+    setPing(""); setCode("");
+  }
+
+  async function host(){
+    if(!active) return;
+    const pw = codeInput ? codeInput.value.trim() : "";
+    showLobby(false);
+    setStage(pw ? "Opening your room…" : "Opening a room…"); setPing(""); setCode("");
+    try{
+      const code=await NetClient.host(pw);
+      if(!active) return;
+      setStage(pw ? "Waiting for your friend to join with:" : "Share this code, then wait:");
+      setCode(code);
+      wireLink();
+    }catch(err){ failWith(err); }
+  }
+
+  async function join(){
+    if(!active) return;
+    const code=codeInput ? codeInput.value : "";
+    if(!code || !code.trim()){
+      setStage("Type the password your friend chose, then press JOIN.");
+      return;
+    }
+    showLobby(false);
+    setStage("Connecting…"); setPing(""); setCode("");
+    try{
+      await NetClient.join(code);
+      if(!active) return;
+      wireLink();
+      onLinked();
+    }catch(err){ failWith(err); }
+  }
+
+  /* Random match: walk the seat pool for a waiting stranger, otherwise sit
+     down and wait to be found. Either way we end up linked to a person. */
+  async function randomMatch(){
+    if(!active) return;
+    showLobby(false);
+    setStage("Looking for an opponent…"); setPing(""); setCode("");
+    try{
+      const r=await NetClient.randomMatch(
+        s=>{ if(active) setStage(s); },
+        ()=>!active
+      );
+      if(!active) return;
+      wireLink();
+      if(r.role==="guest") onLinked();
+      else setStage("Waiting at a table for an opponent…");
+    }catch(err){
+      if(err && err.message==="cancelled") return;
+      failWith(err);
+    }
+  }
+
+  /** Called on both sides once the data channel is open. */
+  function wireLink(){
+    NetClient.on("open",()=>{ if(active) onLinked(); });
+    NetClient.on("close",()=>{ if(active) dropped("Your opponent disconnected."); });
+    NetClient.on("error",e=>{ if(active) dropped(e.message||"Connection problem."); });
+  }
+
+  function onLinked(){
+    if(!active) return;
+    Snd.matchFound();
+    setCode("");
+    setStage("Opponent connected.");
+    startPing();
+    NetClient.on("data",onData);
+    NetClient.on("close",()=>{ if(active) dropped("Your opponent disconnected."); });
+    setTimeout(()=>{
+      if(!active) return;
+      active=false;
+      // Hand the link to the netplay layer and start a real online match.
+      Net.begin(NetClient.isHost, msg=>NetClient.send(msg));
+      Match.startOnline(NetClient.isHost);
+    },1200);
+  }
+
+  function onData(msg){
+    if(!msg || typeof msg!=="object") return;
+    if(msg.t==="ping"){ NetClient.send({t:"pong",at:msg.at}); return; }
+    if(msg.t==="pong"){
+      lastPing=Math.max(1,Math.round(performance.now()-msg.at));
+      setPing("~"+lastPing+" ms");
+      return;
+    }
+    // Everything else is game traffic.
+    Net.onMessage(msg, Match.ent);
+  }
+
+  function startPing(){
+    stopPing();
+    pinger=setInterval(()=>{
+      if(NetClient.connected) NetClient.send({t:"ping",at:performance.now()});
+    },2000);
+  }
+  function stopPing(){ if(pinger){ clearInterval(pinger); pinger=null; } }
+
+  function dropped(msg){
+    stopPing();
+    setStage(msg);
+    setCode("");
+    showLobby(true);
+  }
+
+  function failWith(err){
+    console.warn("[Online]",err);
+    stopPing();
+    setStage(err && err.message ? err.message : "Could not connect.");
+    setCode("");
+    showLobby(true);
+  }
+
+  function cancel(){
+    active=false;
+    stopPing();
+    NetClient.cancel();
+    NetClient = new PeerNetClient();   // fresh client for the next attempt
+    Match.toTitle();
+  }
+
+  const randBtn=document.getElementById("btnRandomMatch");
+  if(randBtn) randBtn.addEventListener("pointerdown",e=>{ e.preventDefault(); Snd.uiSelect(); randomMatch(); });
+  if(hostBtn) hostBtn.addEventListener("pointerdown",e=>{ e.preventDefault(); Snd.uiSelect(); host(); });
+  if(joinBtn) joinBtn.addEventListener("pointerdown",e=>{ e.preventDefault(); Snd.uiSelect(); join(); });
+
+  return {begin,cancel};
+})();
+
+/* Under file:// the browser refuses the external signalling library outright,
+   so say so on the title screen rather than letting the player discover it
+   only after clicking through. CPU MATCH is unaffected. */
+if(location.protocol==="file:"){
+  const sub=document.getElementById("onlineSub");
+  if(sub) sub.textContent="Needs to be served over http(s)";
+  const btn=document.getElementById("btnModeOnline");
+  if(btn) btn.style.opacity="0.55";
+}
+
+/* ─── WIRING ─── */
+const bind=(id,fn)=>{
+  document.getElementById(id).addEventListener("pointerdown",e=>{
+    e.preventDefault(); e.stopPropagation();
+    Snd.init(); Snd.ui(); fn();
+  });
+};
+bind("btnResume",()=>Match.togglePause());
+bind("btnQuit",()=>{ Match.toTitle(); showMode(); });
+bind("btnPause",()=>Match.togglePause());
+bind("btnRestart",()=>Match.restart());
+bind("btnAgain",()=>Match.restart());
+bind("btnHome",()=>{ Match.toTitle(); showMode(); });
+
+/* ── Title menu navigation ────────────────────────────────
+   Two modes (CPU / Online). CPU opens a difficulty panel; Online
+   runs the matchmaking flow through NetClient (mock today, real
+   backend later). ─────────────────────────────────────── */
+const menuMode=document.getElementById("menuMode");
+const menuDiff=document.getElementById("menuDiff");
+function showMode(){ menuMode.classList.remove("hidden"); menuDiff.classList.add("hidden"); }
+function showDiff(){ menuMode.classList.add("hidden"); menuDiff.classList.remove("hidden"); }
+
+document.getElementById("btnModeCpu").addEventListener("pointerdown",e=>{
+  e.preventDefault(); Snd.init(); Snd.uiSelect(); showDiff();
+});
+document.getElementById("btnModeOnline").addEventListener("pointerdown",e=>{
+  e.preventDefault(); Snd.init(); Snd.uiSelect(); Online.begin();
+});
+document.getElementById("btnDiffBack").addEventListener("pointerdown",e=>{
+  e.preventDefault(); Snd.init(); Snd.uiCancel(); showMode();
+});
+document.querySelectorAll(".diffBtn").forEach(b=>{
+  b.addEventListener("pointerdown",e=>{
+    e.preventDefault(); Snd.init(); Snd.uiConfirm();
+    Match.start(b.dataset.diff);
+  });
+});
+// hover cues (desktop)
+document.querySelectorAll(".menuBtn,.diffBtn").forEach(b=>{
+  b.addEventListener("pointerenter",()=>{ if(Snd.enabled)Snd.uiHover(); });
+});
+document.getElementById("btnMatchCancel").addEventListener("pointerdown",e=>{
+  e.preventDefault(); Snd.uiCancel(); Online.cancel();
+});
+
+/* ── Match Analysis screen ─────────────────────────────── */
+document.getElementById("btnAnalytics").addEventListener("pointerdown",e=>{
+  e.preventDefault(); Snd.init(); Snd.uiSelect();
+  renderAnalytics(); Match.toAnalytics();
+});
+document.getElementById("btnAnBack").addEventListener("pointerdown",e=>{
+  e.preventDefault(); Snd.uiCancel(); Match.toTitle(); showMode();
+});
+
+function renderAnalytics(){
+  const A=window.PulseAnalytics;
+  const el=document.getElementById("anBody");
+  const shots=A.allShots();
+  if(!shots || shots.length===0){
+    el.innerHTML=`<div class="anEmpty">No match data yet.<br>Play a match, then come back to see your shot breakdown, placement heatmap, and success rates.</div>`;
+    return;
+  }
+  const sum=A.summary();
+  const P=shots.filter(s=>s.by==="player");
+  const rate=A.rates("player");
+
+  // shot-type counts (player)
+  const cnt=t=>P.filter(s=>s.type===t).length;
+  const fast=cnt("fast"), flat=cnt("normal"), lob=cnt("lob"),
+        sup=cnt("super"), vol=cnt("volley"), smash=cnt("smash"), serve=cnt("serve");
+
+  // unforced errors: player shots that ended the rally on our own net/out
+  const unforced=P.filter(s=>s.result==="net"||(s.result&&s.result.startsWith("out"))).length;
+  const winners=rate.winners;
+
+  // placement heatmap (opponent side = where player's shots land)
+  const heat=A.heatmap("cpu","player");
+  const maxCell=Math.max(1,...heat.flat());
+  const rows=heat.length, cols=heat[0]?heat[0].length:1;
+  let heatHTML=`<div class="anHeat" style="grid-template-columns:repeat(${cols},1fr)">`;
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const v=heat[r][c]/maxCell;
+    heatHTML+=`<div class="hc" style="background:rgba(95,245,232,${(0.05+v*0.75).toFixed(2)})"></div>`;
+  }
+  heatHTML+=`</div>`;
+
+  // shot distribution bars
+  const totalShots=P.length||1;
+  const bar=(label,n,color)=>{
+    const pct=Math.round(n/totalShots*100);
+    return `<div class="anBar"><span class="bl">${label}</span>
+      <span class="bt"><span class="bf" style="width:${pct}%;background:${color}"></span></span>
+      <span class="bv">${n} · ${pct}%</span></div>`;
+  };
+
+  // play-style traits, derived from the mix
+  /* Plain category statistics rather than a subjective style read. These are
+     measured rates the player can act on, not adjectives — and because the
+     analysis now aggregates every match of the session, the sample behind them
+     is large enough to be meaningful. */
+  const rateOf=(sel)=>{
+    const ss=P.filter(sel); if(!ss.length) return null;
+    const good=ss.filter(s=>!(s.result==="net"||(s.result&&s.result.startsWith("out")))).length;
+    return { pct:Math.round(good/ss.length*100), n:ss.length };
+  };
+  const serveRate = rateOf(s=>s.type==="serve");
+  const volRate   = rateOf(s=>s.type==="volley"||s.type==="smash");
+  const fastRate  = rateOf(s=>s.type==="fast"||s.type==="super");
+  const flatRate  = rateOf(s=>s.type==="normal");
+  const lobRate   = rateOf(s=>s.type==="lob");
+  const wide=P.filter(s=>Math.abs(s.dirX)>0.45).length;
+  const widePct=Math.round(wide/totalShots*100);
+
+  const statRow=(label,r)=> r
+    ? `<div class="anBar"><span class="bl">${label}</span>
+         <span class="bt"><span class="bf" style="width:${r.pct}%"></span></span>
+         <span class="bv">${r.pct}% · ${r.n}</span></div>`
+    : `<div class="anBar"><span class="bl">${label}</span>
+         <span class="bt"></span><span class="bv">—</span></div>`;
+
+  el.innerHTML=`
+    <div class="anCard">
+      <h3>Session Overview</h3>
+      <div class="anStats">
+        <div class="anStat"><span class="v">${sum.rallies}</span><span class="l">Rallies</span></div>
+        <div class="anStat"><span class="v">${sum.avgLength}</span><span class="l">Avg Length</span></div>
+        <div class="anStat"><span class="v">${sum.longest}</span><span class="l">Longest</span></div>
+        <div class="anStat"><span class="v rose">${winners}</span><span class="l">Winners</span></div>
+        <div class="anStat"><span class="v purp">${unforced}</span><span class="l">Unforced</span></div>
+      </div>
+    </div>
+    <div class="anCard">
+      <h3>Shot Breakdown</h3>
+      ${bar("FAST",fast,"#ff5f7e")}
+      ${bar("FLAT",flat,"#5ff5e8")}
+      ${bar("LOB",lob,"#b160ff")}
+      ${bar("Volley",vol,"#ff9f5f")}
+      ${bar("Smash",smash,"#ffe95f")}
+      ${bar("Super",sup,"#ffe95f")}
+      ${bar("Serve",serve,"#8fa0ad")}
+    </div>
+    <div class="anCard">
+      <h3>Accuracy</h3>
+      <div class="anStats">
+        <div class="anStat"><span class="v">${rate.in}%</span><span class="l">In</span></div>
+        <div class="anStat"><span class="v purp">${rate.net}%</span><span class="l">Net</span></div>
+        <div class="anStat"><span class="v rose">${rate.out}%</span><span class="l">Out</span></div>
+      </div>
+    </div>
+    <div class="anCard">
+      <h3>Placement — where your shots land</h3>
+      ${heatHTML}
+      <div class="anBar" style="margin-top:10px">
+        <span class="bl">Wide</span>
+        <span class="bt"><span class="bf" style="width:${widePct}%"></span></span>
+        <span class="bv">${widePct}%</span>
+      </div>
+    </div>
+    <div class="anCard">
+      <h3>Success rate by shot</h3>
+      ${statRow("Serve",serveRate)}
+      ${statRow("FAST",fastRate)}
+      ${statRow("FLAT",flatRate)}
+      ${statRow("LOB",lobRate)}
+      ${statRow("Volley",volRate)}
+      <p style="font-size:10px;color:var(--ink-soft);margin:10px 0 0;letter-spacing:.04em">
+        Percentage landed in · sample size. Aggregated across all matches this session.
+      </p>
+    </div>
+  `;
+}
+
+UI.btnSound.addEventListener("pointerdown",e=>{
+  e.preventDefault(); e.stopPropagation(); Snd.init();
+  const on=Snd.toggle();
+  UI.btnSound.textContent=on?"SOUND ON":"SOUND OFF";
+  UI.btnSound.classList.toggle("off",!on);
+  if(on)Snd.ui();
+});
+
+document.addEventListener("gesturestart",e=>e.preventDefault(),{passive:false});
+document.addEventListener("touchmove",e=>{ if(e.touches.length>1) e.preventDefault(); },{passive:false});
+let lastTouchEnd=0;
+document.addEventListener("touchend",e=>{
+  const now=Date.now();
+  if(now-lastTouchEnd<=300) e.preventDefault();
+  lastTouchEnd=now;
+},{passive:false});
+
+Layout.check();
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
